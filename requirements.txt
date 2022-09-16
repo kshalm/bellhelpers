@@ -1,0 +1,9 @@
+pyzmq
+git+git://github.com/kshalm/zmqhelpers
+json
+redis
+pyYAML
+numpy
+scipy
+logging
+git+https://github.com/kshalm/motorLib
