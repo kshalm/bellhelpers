@@ -8,5 +8,6 @@ setup(name='bellhelper',
       author_email='lks@nist.gov',
       license='MIT',
       packages=['bellhelper'],
+      install_requires=['pyyaml'],
       include_package_data=True,
       zip_safe=False)
