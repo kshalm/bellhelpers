@@ -1,1 +1,5 @@
 pyyaml
+bellMotors@ git+https://github.com/kshalm/motorLib.git#egg=bellMotors
+numpy
+scipy
+redis
