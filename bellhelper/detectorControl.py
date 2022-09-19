@@ -1,22 +1,23 @@
 from zmqhelper import Client
 import json
-import redis
-import yaml
+# import redis
+# import yaml
+
 
 class DetectorControlMCC():
     """
-    Simple class to connect to the two time taggers, stream data, and find the
-    delays/time tag offsets.
+    Simple class to control the detectors to control the MCC
     """
+
     def __init__(self, ip, port):
-        self.con = Client(ip,port)
+        self.con = Client(ip, port)
         self.get_config()
 
     def get_config(self):
         configJSON = self.con.send_message('getconfig')
         self.config = json.loads(configJSON)
-        self.order = config['Key_Order']['Comparator']
-        return config, order
+        self.order = self.config['Key_Order']['Comparator']
+        return self.config, self.order
 
     def send_config(self, cmd, vals):
         valsJson = json.dumps(vals, separators=(',', ':'))
@@ -29,26 +30,28 @@ class DetectorControlMCC():
 
 class DetectorControlKeithley():
     """
-    Simple class to connect to the two time taggers, stream data, and find the
-    delays/time tag offsets.
+    Simple class to control the detectors and send commands to the
+    Keithley
     """
-    def __init__(self, ip, port, id, el=None):#configFile = 'client.yaml'):
-        self.con = Client(ip,port)
-        get_config(self.con)
+
+    def __init__(self, ip, port, id, el=None):  # configFile = 'client.yaml'):
+        self.con = Client(ip, port)
+        self.get_config(self.con)
         self.id = id+'keithley'
         if el is not None:
             self.el = el
-            self.st = el 
+            self.st = el
         else:
-            self.st = st
+            pass
+            # self.st = st
         self.create_form()
         self.update_form()
 
     def get_config(self):
         configJSON = self.con.send_message('getconfig')
         self.config = json.loads(configJSON)
-        self.order = config['Key_Order']['Comparator']
-        return config, order
+        self.order = self.config['Key_Order']['Comparator']
+        return self.config, self.order
 
     def send_config(self, cmd, vals):
         valsJson = json.dumps(vals, separators=(',', ':'))
