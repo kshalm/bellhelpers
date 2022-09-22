@@ -8,13 +8,13 @@ import time
 import os.path
 import numpy as np
 from scipy.optimize import minimize
-from scipy.optimize import basinhopping
-from scipy import optimize
+# from scipy.optimize import basinhopping
+# from scipy import optimize
 from bellMotors.motorControlZaber import MotorControllerZaber
 import bellhelper.read as read
 import logging
 import datetime
-import bellhelper.redisHelper as rh
+# import bellhelper.redisHelper as rh
 
 
 class MirrorControl():
@@ -107,7 +107,7 @@ class MirrorControl():
 
     def get_power(self, intTime, COUNTTYPE='SB', COUNTPATH='VV'):
         # counts = read.get_power(intTime, COUNTPATH)[COUNTPATH]
-        counts = read.get_counts(r, dt=0.2, countPath='VV')
+        counts = read.get_counts(self.r, dt=0.2, countPath='VV')
 
         if COUNTTYPE == 'SA':
             val = counts[0]
@@ -133,7 +133,7 @@ class MirrorControl():
         # Check to see if we exceed the maximum bounds
         tooBig = np.greater(maxBounds, pos)
         tooSmall = np.greater(pos, minBounds)
-        #print tooBig, tooSmall
+        # print tooBig, tooSmall
 
         if (np.all(tooBig) is False or np.all(tooSmall) is False):
             print("Out of bounds")

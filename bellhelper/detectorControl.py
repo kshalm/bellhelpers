@@ -4,9 +4,9 @@ import json
 # import yaml
 
 
-class DetectorControlMCC():
+class ComparatorControlMCC():
     """
-    Simple class to control the detectors to control the MCC
+    Simple class to control the comparators via the MCC
     """
 
     def __init__(self, ip, port):
@@ -23,8 +23,12 @@ class DetectorControlMCC():
         valsJson = json.dumps(vals, separators=(',', ':'))
         self.con.send_message(cmd+' '+valsJson)
 
-    def set_values(self):
-        msg = self.send_config('setcomparatorconfig', self.config)
+    def set_comparator_values(self):
+        self.get_config()
+        ret = {}
+        for items, vals in self.config["Comparator"].items():
+            ret[items] = vals['value']
+        msg = self.send_config('setcomparatorconfig', ret)
         return msg
 
 
@@ -36,7 +40,7 @@ class DetectorControlKeithley():
 
     def __init__(self, ip, port, id, el=None):  # configFile = 'client.yaml'):
         self.con = Client(ip, port)
-        self.get_config(self.con)
+        self.get_config()
         self.id = id+'keithley'
         if el is not None:
             self.el = el
@@ -44,8 +48,8 @@ class DetectorControlKeithley():
         else:
             pass
             # self.st = st
-        self.create_form()
-        self.update_form()
+        # self.create_form()
+        # self.update_form()
 
     def get_config(self):
         configJSON = self.con.send_message('getconfig')
@@ -57,6 +61,6 @@ class DetectorControlKeithley():
         valsJson = json.dumps(vals, separators=(',', ':'))
         self.con.send_message(cmd+' '+valsJson)
 
-    def reset_detecotrs(self):
-        msg = self.send_config('setdetconfig', self.config)
+    def reset_detectors(self):
+        msg = self.con.send_message('resetdet')
         return msg

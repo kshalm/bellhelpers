@@ -1,5 +1,5 @@
 pyyaml
 bellMotors@ git+https://github.com/kshalm/motorLib.git#egg=bellMotors
-numpy
+zmqhelper@ git+https://github.com/kshalm/zmqhelpers.git#egg=zmqhelpernumpy
 scipy
 redis

@@ -1,11 +1,11 @@
 '''
 A collection of helper functions to talk to the redis database,
-fetch data from a data stream, and fetch and set dictionary items 
+fetch data from a data stream, and fetch and set dictionary items
 containing configuration files.
 '''
 import json
 import redis
-import copy
+# import copy
 import yaml
 
 
@@ -17,11 +17,28 @@ def connect_to_redis(redisConfig):
 
 
 def get_last_entry(r, channel, count=1):
-    ret = r.xrevrange(channel, count=count)[0]
+    '''returns a list of entries'''
+    ret = r.xrevrange(channel, count=count)
     if not ret:
         return None
-    ret = decode_dict(ret[1])
+    ret = [decode_dict(ele[1]) for ele in ret]
     return ret
+
+
+def get_last_timestamp(r, channel, count=1):
+    '''returns a list of entries'''
+    ret = r.xrevrange(channel, count=count)
+    if not ret:
+        return None
+    ret = [ele[0].decode() for ele in ret]
+    return ret
+
+
+def set_key_to_expire(r, channel, time):
+    '''sets an expiration time for a channel.
+    time must be an int number of seconds.
+    Otherwise it is cast'''
+    r.expire(channel, int(time))
 
 
 def get_data(r, channel, lastTimeStamp, count=None):
