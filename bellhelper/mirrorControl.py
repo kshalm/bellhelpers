@@ -14,34 +14,50 @@ from bellMotors.motorControlZaber import MotorControllerZaber
 import bellhelper.read as read
 import logging
 import datetime
+from logging.handlers import TimedRotatingFileHandler
 # import bellhelper.redisHelper as rh
+
+# Writing a new class that inherits from the TimedRotatingFileHandler
+# to implement a header for every new log file. Modification of  an
+# example from:
+# "https://stackoverflow.com/questions/27840094/
+# write-a-header-at-every-logfile-that-is-created-with-
+# a-time-rotating-logger"
+
+
+class MyTimedRotatingFileHandler(TimedRotatingFileHandler):
+    def __init__(self, logfile, when, interval,
+                 backupCount, header_updater, logger):
+        super(MyTimedRotatingFileHandler, self).__init__(logfile,
+                                                         when,
+                                                         interval,
+                                                         backupCount)
+        self._header_updater = header_updater
+        self._log = logger
+
+    def doRollover(self):
+        super(MyTimedRotatingFileHandler, self).doRollover()
+        if self._header_updater is not None:
+            self._log.info(self._header_updater())
 
 
 class MirrorControl():
     def __init__(self, r, ip='127.0.0.1', port=55000, name='default'):
         print('autoalign', ip, port, name)
         self.r = r
-
-        dt = datetime.date.today().strftime("%y_%m_%d")
-        fnLog = dt + '_' + name + "_Motor.log"
-        fn = os.path.join('Logs', fnLog)
+        fnLog = name + "zaber_motor"
+        fn = os.path.join('motor_logs', fnLog)
         self.logger = self.setup_logger(name, fn)
         # logging.basicConfig(filename=fnLog, level=logging.INFO)
         # logger.basicConfig(filename='example.log', format='%(asctime)s %(message)s')
-        self.logger.info("==================================================")
-        self.logger.info(name + ", " + ip)
-        dtnow = datetime.datetime.now().strftime("Initializing at: %H:%M:%S")
         # print(dtnow)
-        self.logger.info(dtnow)
-        self.logger.info("==================================================")
-        self.logger.info(" ")
         self.zb = MotorControllerZaber(ip, port=port)
         self.intTime = .8
         # Disable the Potentiometer knobs
         self.zb.potentiometer_all_enabled(False)
         # print('Set potentiometer')
         self.channels = self.zb.channels
-        self.motorInfo = {}
+        self.motor_info = {}
         self.extract_channel_path_names()
         self.BESTCOUNTS = 0
         # print('getting positions')
@@ -51,20 +67,52 @@ class MirrorControl():
         self.CONFIGKEY = 'config:timetaggers'
         # logger.info("BESTPOS:" + str(self.BESTPOS))
 
+    # def setup_logger(self, name, log_file, level=logging.INFO):
+    #     formatter = logging.Formatter('%(asctime)s %(message)s')
+    #     handler = logging.FileHandler(log_file)
+    #     # handler.setFormatter(formatter)
+    #     logger = logging.getLogger(name)
+    #     logger.setLevel(level)
+    #     logger.addHandler(handler)
+    #     logger.setFormatter(formatter)
+    #     return(logger)
+
     def setup_logger(self, name, log_file, level=logging.INFO):
+        os.makedirs(os.path.dirname(log_file), exist_ok=True)
         formatter = logging.Formatter('%(asctime)s %(message)s')
-        handler = logging.FileHandler(log_file)
-        # handler.setFormatter(formatter)
         logger = logging.getLogger(name)
+        handler = MyTimedRotatingFileHandler(log_file,
+                                             'midnight', 1, -1,
+                                             self.header_updater,
+                                             logger)
+        handler.suffix = '%d_%m_%Y.log'
+        handler.setFormatter(formatter)
         logger.setLevel(level)
         logger.addHandler(handler)
         return(logger)
 
+    def header_updater(self):
+        dtnow = datetime.datetime.now().strftime("Initializing at: %H:%M:%S")
+        head_str = ('\n' +
+                    "==================================================")
+        head_str += ('\n' + "Connected to " +
+                     self.name + ", " + self.ip)
+        head_str += '\n' + dtnow
+        head_str += ('\n' +
+                     "==================================================" +
+                     '\n')
+
+        tail_str = ('\n'
+                    "==================================================="
+                    + '\n')
+        pos = "positions are: " + str(self.get_all_positions())
+        return head_str + pos + tail_str
+
     def get_paths(self):
-        return(self.motorInfo.keys())
+        return(self.motor_info.keys())
 
     def extract_channel_path_names(self):
-        motorInfo = {}
+        motor_info = {}
         path = []
         mirrorNum = []
         mirrorDir = []
@@ -80,15 +128,15 @@ class MirrorControl():
 
         pathNames = set(path)  # extract the unique path names
         for key in pathNames:
-            motorInfo[key] = {'x': {'ch': [], 'mirror': []},
-                              'y': {'ch': [], 'mirror': []}}
+            motor_info[key] = {'x': {'ch': [], 'mirror': []},
+                               'y': {'ch': [], 'mirror': []}}
 
         for i in range(len(self.channels)):
-            motorInfo[path[i]][mirrorDir[i]]['ch'].append(
+            motor_info[path[i]][mirrorDir[i]]['ch'].append(
                 int(self.channels[i]))
-            motorInfo[path[i]][mirrorDir[i]]['mirror'].append(mirrorNum[i])
+            motor_info[path[i]][mirrorDir[i]]['mirror'].append(mirrorNum[i])
 
-        self.motorInfo = motorInfo
+        self.motor_info = motor_info
 
     def move_all_to_position(self, pos):
         for i in range(len(self.channels)):
@@ -198,17 +246,17 @@ class MirrorControl():
 
         if path.lower() == 'both':
             x0 = [0, 0, 0, 0]
-            for key in self.motorInfo:
-                xChan += self.motorInfo[key]['x']['ch']
-                yChan += self.motorInfo[key]['y']['ch']
+            for key in self.motor_info:
+                xChan += self.motor_info[key]['x']['ch']
+                yChan += self.motor_info[key]['y']['ch']
         elif (dir == 'x') or (dir == 'y') or (dir == 'xy'):
             x0 = [0, 0]
-            xChan = self.motorInfo[path]['x']['ch']
-            yChan = self.motorInfo[path]['y']['ch']
+            xChan = self.motor_info[path]['x']['ch']
+            yChan = self.motor_info[path]['y']['ch']
         else:
             x0 = [0]
-            xChan = [self.motorInfo[path]['x']['ch'][0]]
-            yChan = [self.motorInfo[path]['y']['ch'][0]]
+            xChan = [self.motor_info[path]['x']['ch'][0]]
+            yChan = [self.motor_info[path]['y']['ch'][0]]
 
         print('Channels', xChan, yChan)
 
@@ -238,7 +286,7 @@ class MirrorControl():
             resy = minimize(self.obj_func, x0, params,
                             method='Nelder-Mead', options=options)
             # resy = minimize(self.obj_func, x0, params, method = 'CG', options = optionsCG)
-            #resy = basinhopping(self.obj_func, x0, minimizer_kwargs = minimizer_kwargs, stepsize = stepsize )
+            # resy = basinhopping(self.obj_func, x0, minimizer_kwargs = minimizer_kwargs, stepsize = stepsize )
             self.STARTPOS = self.BESTPOS
             # self.STARTPOS = self.get_all_positions()
             self.log_output("Finished Y: " + str(self.BESTPOS) +
