@@ -34,13 +34,15 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
     if numTries == 0:
         numTries = 1
 
-    t1 = time.time()
+    # t1 = time.time()
+    LASTTIMESTAMP = '0-0'
     
-    msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP, count=1)
+    msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP)
     if msgCounts is not None:
-        LASTTIMESTAMP = msgCounts[-1][0]
+        LASTTIMESTAMP = msgCounts[-2][0]
         counts = msgCounts[-1][1]
         defaultIntegrationTime = counts['integrationTime']
+        # print('Starting timestamp:', msgCounts[-1][0])
 
     nSamples = int(math.ceil(float(intTime)/float(defaultIntegrationTime)))
 
@@ -50,42 +52,54 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
     i = 0
     countList = []
     defaultNumTries = numTries
+    t1 = time.time()
 
-    
-
-    for j in range(nSamples):
+    # print('LASTTIMESTAMP', LASTTIMESTAMP)
+    j=0
+    while j<nSamples:
         cont = True
         numTries = defaultNumTries
+        i = 0
         while cont:
-            time.sleep(.1)
-            msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP, count=2)
-            if msgCounts is not None:
-                newTimeStamp = msgCounts[-1][0]
-                counts = msgCounts[-1][1]
+            i+=1
+            time.sleep(.05)
+            msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP, count=100)
+            t2 = time.time()
+            print(i, j, 'Elapsed time:', t2-t1)
+            # print(msgCounts)
+            # print('')
+
+            if (msgCounts is not None) and len(msgCounts)>=2:
+                pass
             else:
                 continue
-            isTrim = counts['isTrim']
-            currentIntegrationTime = counts['integrationTime']
-            isCorrectIntegrationTime = float(
-                defaultIntegrationTime) == float(currentIntegrationTime)
-            countsValid = error_check(msgCounts, countPath, inlcudeNullCounts)
-            if countsValid and isCorrectIntegrationTime:
-                if not trim or (trim and isTrim):
-                    LASTTIMESTAMP = newTimeStamp
-                    cont = False
-                    countList.append(counts[countPath])
-                    t2 = time.time()
-                    # print(j, 'Elapsed time:', t2-t1, intTime)
-                    break  # end the loop
 
-            if (i >= numTries-1) and (numTries > 0):
+            goodCounts, LASTTIMESTAMP = parse_counts(msgCounts, countPath, 
+                                        inlcudeNullCounts, defaultIntegrationTime, trim)
+
+            # print(LASTTIMESTAMP)
+
+            if len(goodCounts)==0:
+                print('failed')
+                continue
+            else: 
+                countsToAdd = goodCounts[0:nSamples-j]
+                print(countsToAdd)
+                j+=len(countsToAdd)
+                # print(j)
+                countList+=countsToAdd
+                t2 = time.time()
+                print('SUCCESS', j, 'Elapsed time:', t2-t1, intTime, LASTTIMESTAMP)
+                print('')
+                break  # end the loop
+            if (i >= numTries) and (numTries > 0):
                 cont = False
                 return None  # No valid answer
-            i += 1
             
 
     # t2 = time.time()
     # print('Elapsed time:', t2-t1, intTime)
+    print(countList)
     sA = 0
     sB = 0 
     coinc = 0 
@@ -98,6 +112,35 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
     countArray = [sA, coinc, sB, effA, effB, effAB]
 
     return countArray
+
+def parse_counts(msgCounts, countPath, inlcudeNullCounts, defaultIntegrationTime, trim):
+    goodCounts = []
+    lastTimeStamp = msgCounts[-2][0]
+    # if (msgCounts is not None) and len(msgCounts)>=2:
+    #     # lastTimeStamp = msgCounts[-2][0]
+    #     pass
+    # else:
+    #     lastTimeStamp = msgCounts[-1][0]
+    #     return goodCounts, lastTimeStamp
+
+    for j in range(1,len(msgCounts)):
+        oldCount = msgCounts[j-1][1]
+        newCount = msgCounts[j][1]
+        # print(newCount)
+
+        isTrim = newCount['isTrim']
+        currentIntegrationTime = newCount['integrationTime']
+        isCorrectIntegrationTime = float(
+            defaultIntegrationTime) == float(currentIntegrationTime)
+        countsValid = error_check(oldCount[countPath], newCount[countPath], countPath, inlcudeNullCounts)
+
+        if countsValid and isCorrectIntegrationTime:
+            if not trim or (trim and isTrim):
+                # print(newCount[countPath])
+                # print('')
+                goodCounts.append(newCount[countPath])
+
+    return goodCounts, lastTimeStamp
 
 
 def calc_efficiency(sA, sB, coinc):
@@ -115,7 +158,7 @@ def calc_efficiency(sA, sB, coinc):
         return eff
 
 
-def error_check(msgCounts, countPath, inlcudeNullCounts=False):
+def error_check(previousCounts, currentCounts, countPath, inlcudeNullCounts=False):
     '''
     Function to make sure that the counts satisfy several conditions. These include 
     the singles not being null (if that option is specified), and that the counts have
@@ -132,25 +175,25 @@ def error_check(msgCounts, countPath, inlcudeNullCounts=False):
     '''
     countsValid = True
     # print('msg len', len(msgCounts))
-    if len(msgCounts) > 1:
-        currentCounts = msgCounts[-1][1][countPath]
-        previousCounts = msgCounts[-2][1][countPath]
+    # if len(msgCounts) > 1:
+    # currentCounts = msgCounts[-1][1][countPath]
+    # previousCounts = msgCounts[-2][1][countPath]
 
-        currentSA = int(currentCounts['As'])
-        currentSB = int(currentCounts['Bs'])
-        currentCoinc = int(currentCounts['C'])
+    currentSA = int(currentCounts['As'])
+    currentSB = int(currentCounts['Bs'])
+    currentCoinc = int(currentCounts['C'])
 
-        previousSA = int(previousCounts['As'])
-        previousSB = int(previousCounts['Bs'])
-        previousCoinc = int(previousCounts['C'])
+    previousSA = int(previousCounts['As'])
+    previousSB = int(previousCounts['Bs'])
+    previousCoinc = int(previousCounts['C'])
 
-        if not inlcudeNullCounts:
-            # Null counts in the singles are not valid
-            if (currentSA == 0) or (currentSB == 0):
-                countsValid = False
-            if (currentSA == previousSA) or (currentSB == previousSB):
-                # Make sure that the counts have updated
-                countsValid = False
+    if not inlcudeNullCounts:
+        # Null counts in the singles are not valid
+        if (currentSA == 0) or (currentSB == 0):
+            countsValid = False
+        if (currentSA == previousSA) or (currentSB == previousSB):
+            # Make sure that the counts have updated
+            countsValid = False
         else:
             # Include null counts in the results. Need to catch
             # the condition where one singles rate is 0. In this
@@ -161,8 +204,8 @@ def error_check(msgCounts, countPath, inlcudeNullCounts=False):
                 countsValid = False
             if (currentSB > 0) and (currentSB == previousSB):
                 countsValid = False
-    else:
-        countsValid = False
+    # else:
+    #     countsValid = False
 
     return countsValid
 
@@ -205,7 +248,7 @@ if __name__ == '__main__':
     redisConfig = {'ip': redisIP, 'port': redisPort, 'db': db}
     r = rh.connect_to_redis(redisConfig)
 
-    # oldIntegrationTime = set_integration_time(r, .2, CONFIGKEY)
+    # oldIntegrationTime = set_integration_time(r, 0.5, CONFIGKEY)
     # print('old integration time', oldIntegrationTime)
     countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=-1, 
         inlcudeNullCounts=True, trim=True)
