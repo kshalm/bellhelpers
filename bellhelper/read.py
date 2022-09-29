@@ -9,7 +9,62 @@ import math as math
 CHANNELCOUNTS = 'monitor:counts'
 LASTTIMESTAMP = '0-0'
 CONFIGKEY = 'config:timetaggers'
-# DEFAULTINTTIME = 0.2
+
+def loop_counts(r, channel, parse_function, intTime=0.2, inlcudeNullCounts=False,
+                 countPath='VV', numTries=-1, trim=True):
+    if numTries == 0:
+        numTries = 1
+
+    msgCounts = rh.get_last_entry(r, channel, count=2)
+    if msgCounts is not None:
+        # Need to grab the second to last timestamp to start with.
+        # We need the current and last 
+        LASTTIMESTAMP = msgCounts[0][0]
+        counts = msgCounts[1][1]
+        defaultIntegrationTime = counts['integrationTime']
+
+    nSamples = int(math.ceil(float(intTime)/float(defaultIntegrationTime)))
+    cont = True
+
+    i = 0
+    countList = []
+    defaultNumTries = numTries
+    t1 = time.time()
+
+    j=0
+    while j<nSamples:
+        cont = True
+        numTries = defaultNumTries
+        i = 0
+        while cont:
+            i+=1
+            time.sleep(.05)
+            msgCounts = rh.get_data(r, channel, LASTTIMESTAMP)
+            t2 = time.time()
+            # print(i, j, 'Elapsed time:', t2-t1)
+            if (msgCounts is not None) and len(msgCounts)>=2:
+                # Need to make sure that an update has occured which requires
+                # at least two new entries since the first one.
+                pass
+            else:
+                continue
+
+            goodCounts, LASTTIMESTAMP = parse_function(msgCounts, countPath, 
+                                        inlcudeNullCounts, trim)
+
+            if len(goodCounts)==0:
+                continue
+            else: 
+                countsToAdd = goodCounts[0:nSamples-j]
+                j+=len(countsToAdd)
+                countList+=countsToAdd
+                t2 = time.time()
+                # print('SUCCESS', j, 'Elapsed time:', t2-t1, intTime, LASTTIMESTAMP)
+                break  # end the loop
+            if (i >= numTries) and (numTries > 0):
+                cont = False
+                return None  # No valid answer
+    return countList
 
 
 def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=False, trim=True):
@@ -29,69 +84,11 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
     'trim': Only return results where 'isTrim' is True.
     Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
              or returns None if no valid counts obtained.
-    '''
-    global LASTTIMESTAMP, DEFAULTINTTIME
-    if numTries == 0:
-        numTries = 1
-
-    LASTTIMESTAMP = '0-0'
-    
-    msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP)
-    if msgCounts is not None:
-        # Need to grab the second to last timestamp to start with.
-        # We need the current and last 
-        LASTTIMESTAMP = msgCounts[-2][0]
-        counts = msgCounts[-1][1]
-        defaultIntegrationTime = counts['integrationTime']
-
-    nSamples = int(math.ceil(float(intTime)/float(defaultIntegrationTime)))
-
-    intTime = get_integration_time(r, CONFIGKEY)
-    cont = True
-
-    i = 0
-    countList = []
-    defaultNumTries = numTries
-    t1 = time.time()
-
-    j=0
-    while j<nSamples:
-        cont = True
-        numTries = defaultNumTries
-        i = 0
-        while cont:
-            i+=1
-            time.sleep(.05)
-            msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP, count=100)
-            t2 = time.time()
-            # print(i, j, 'Elapsed time:', t2-t1)
-            if (msgCounts is not None) and len(msgCounts)>=2:
-                pass
-            else:
-                continue
-
-            goodCounts, LASTTIMESTAMP = parse_counts(msgCounts, countPath, 
-                                        inlcudeNullCounts, defaultIntegrationTime, trim)
-
-            if len(goodCounts)==0:
-                continue
-            else: 
-                countsToAdd = goodCounts[0:nSamples-j]
-                j+=len(countsToAdd)
-                countList+=countsToAdd
-                t2 = time.time()
-                # print('SUCCESS', j, 'Elapsed time:', t2-t1, intTime, LASTTIMESTAMP)
-                # print('')
-                break  # end the loop
-            if (i >= numTries) and (numTries > 0):
-                cont = False
-                return None  # No valid answer
-            
-
+    '''     
+    countList = loop_counts(r, CHANNELCOUNTS, parse_counts, intTime=intTime, 
+                inlcudeNullCounts=inlcudeNullCounts, countPath=countPath, 
+                numTries=numTries, trim=trim)
     countDict = {}
-    print('')
-    print('list', countList)
-    print('')
     keys = countList[0].keys()
     for countType in keys:
         if countPath in countType: 
@@ -108,7 +105,7 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
 
     return countDict
 
-def parse_counts(msgCounts, countPath, inlcudeNullCounts, defaultIntegrationTime, trim):
+def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim):
     goodCounts = []
     lastTimeStamp = msgCounts[-2][0]
 
@@ -118,12 +115,12 @@ def parse_counts(msgCounts, countPath, inlcudeNullCounts, defaultIntegrationTime
         # print(newCount)
 
         isTrim = newCount['isTrim']
-        currentIntegrationTime = newCount['integrationTime']
-        isCorrectIntegrationTime = float(
-            defaultIntegrationTime) == float(currentIntegrationTime)
+        # currentIntegrationTime = newCount['integrationTime']
+        # isCorrectIntegrationTime = float(
+        #     defaultIntegrationTime) == float(currentIntegrationTime)
         countsValid = error_check(oldCount[countPath], newCount[countPath], countPath, inlcudeNullCounts)
 
-        if countsValid and isCorrectIntegrationTime:
+        if countsValid:# and isCorrectIntegrationTime:
             if not trim or (trim and isTrim):
                 # goodCounts.append(newCount[countPath])
                 goodCounts.append(newCount)

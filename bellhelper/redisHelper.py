@@ -16,10 +16,11 @@ def connect_to_redis(redisConfig):
     return r
 
 def get_last_entry(r, channel, count=1):
+    '''returns a list of entries'''
     msg = r.xrevrange(channel, count=count)
     if len(msg) == 0:
         return None
-    msgDecode = decode_data(msg[0])
+    msgDecode = [(ele[0].decode(), decode_dict(ele[1])) for ele in msg]
     return msgDecode
 
 # def get_last_entry(r, channel, count=1):
