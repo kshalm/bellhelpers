@@ -15,24 +15,29 @@ def connect_to_redis(redisConfig):
                     db=redisConfig['db'])
     return r
 
-
 def get_last_entry(r, channel, count=1):
-    '''returns a list of entries'''
-    ret = r.xrevrange(channel, count=count)
-    if not ret:
+    msg = r.xrevrange(channel, count=count)
+    if len(msg) == 0:
         return None
-    ret = [decode_dict(ele[1]) for ele in ret]
-    return ret
+    msgDecode = decode_data(msg[0])
+    return msgDecode
+
+# def get_last_entry(r, channel, count=1):
+#     '''returns a list of entries'''
+#     ret = r.xrevrange(channel, count=count)
+#     if not ret:
+#         return None
+#     ret = [decode_dict(ele[1]) for ele in ret]
+#     return ret
 
 
-def get_last_timestamp(r, channel, count=1):
-    '''returns a list of entries'''
-    ret = r.xrevrange(channel, count=count)
-    if not ret:
-        return None
-    ret = [ele[0].decode() for ele in ret]
-    return ret
-
+# def get_last_timestamp(r, channel, count=1):
+#     '''returns a list of entries'''
+#     ret = r.xrevrange(channel, count=count)
+#     if not ret:
+#         return None
+#     ret = [ele[0].decode() for ele in ret]
+#     return ret
 
 def set_key_to_expire(r, channel, time):
     '''sets an expiration time for a channel.

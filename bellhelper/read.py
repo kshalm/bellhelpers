@@ -34,15 +34,15 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
     if numTries == 0:
         numTries = 1
 
-    # t1 = time.time()
     LASTTIMESTAMP = '0-0'
     
     msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP)
     if msgCounts is not None:
+        # Need to grab the second to last timestamp to start with.
+        # We need the current and last 
         LASTTIMESTAMP = msgCounts[-2][0]
         counts = msgCounts[-1][1]
         defaultIntegrationTime = counts['integrationTime']
-        # print('Starting timestamp:', msgCounts[-1][0])
 
     nSamples = int(math.ceil(float(intTime)/float(defaultIntegrationTime)))
 
@@ -54,7 +54,6 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
     defaultNumTries = numTries
     t1 = time.time()
 
-    # print('LASTTIMESTAMP', LASTTIMESTAMP)
     j=0
     while j<nSamples:
         cont = True
@@ -80,13 +79,11 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
             # print(LASTTIMESTAMP)
 
             if len(goodCounts)==0:
-                print('failed')
                 continue
             else: 
                 countsToAdd = goodCounts[0:nSamples-j]
                 print(countsToAdd)
                 j+=len(countsToAdd)
-                # print(j)
                 countList+=countsToAdd
                 t2 = time.time()
                 print('SUCCESS', j, 'Elapsed time:', t2-t1, intTime, LASTTIMESTAMP)
@@ -99,29 +96,56 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
 
     # t2 = time.time()
     # print('Elapsed time:', t2-t1, intTime)
-    print(countList)
-    sA = 0
-    sB = 0 
-    coinc = 0 
-    for c in countList:
-        sA += int(c['As'])
-        sB += int(c['Bs'])
-        coinc += int(c['C'])
-    
-    effA, effB, effAB = calc_efficiency(sA, sB, coinc)
-    countArray = [sA, coinc, sB, effA, effB, effAB]
+    countDict = {}
+    print('')
+    print('list', countList)
+    print('')
+    keys = countList[0].keys()
+    for countType in keys:
+        if countPath in countType: 
+            sA = 0
+            sB = 0 
+            coinc = 0 
+            for c in countList:
+                sA += int(c[countType]['As'])
+                sB += int(c[countType]['Bs'])
+                coinc += int(c[countType]['C'])
+            effA, effB, effAB = calc_efficiency(sA, sB, coinc)
+            countArray = [sA, coinc, sB, effA, effB, effAB]
+            countDict[countType] = countArray
 
-    return countArray
+
+        # for key, val in count.items():
+        #     if countPath in key:
+        #         sA = 0
+        #         sB = 0 
+        #         coinc = 0 
+        #         for c in countList:
+        #             sA += int(c['As'])
+        #             sB += int(c['Bs'])
+        #             coinc += int(c['C'])
+
+    # print(countList)
+    # for count in countList:
+    #     for key, val in count.items():
+    #         if countPath in key:
+    #             sA = 0
+    #             sB = 0 
+    #             coinc = 0 
+    #             for c in countList:
+    #                 sA += int(c['As'])
+    #                 sB += int(c['Bs'])
+    #                 coinc += int(c['C'])
+    
+    # effA, effB, effAB = calc_efficiency(sA, sB, coinc)
+    # countArray = [sA, coinc, sB, effA, effB, effAB]
+
+    # return countArray
+    return countDict
 
 def parse_counts(msgCounts, countPath, inlcudeNullCounts, defaultIntegrationTime, trim):
     goodCounts = []
     lastTimeStamp = msgCounts[-2][0]
-    # if (msgCounts is not None) and len(msgCounts)>=2:
-    #     # lastTimeStamp = msgCounts[-2][0]
-    #     pass
-    # else:
-    #     lastTimeStamp = msgCounts[-1][0]
-    #     return goodCounts, lastTimeStamp
 
     for j in range(1,len(msgCounts)):
         oldCount = msgCounts[j-1][1]
@@ -136,9 +160,8 @@ def parse_counts(msgCounts, countPath, inlcudeNullCounts, defaultIntegrationTime
 
         if countsValid and isCorrectIntegrationTime:
             if not trim or (trim and isTrim):
-                # print(newCount[countPath])
-                # print('')
-                goodCounts.append(newCount[countPath])
+                # goodCounts.append(newCount[countPath])
+                goodCounts.append(newCount)
 
     return goodCounts, lastTimeStamp
 
@@ -273,9 +296,9 @@ if __name__ == '__main__':
     # oldIntegrationTime = set_integration_time(r, 0.5, CONFIGKEY)
     # print('old integration time', oldIntegrationTime)
 
-    # countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=-1, 
-    #     inlcudeNullCounts=True, trim=True)
-    # print(countsArray)
+    countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=-1, 
+        inlcudeNullCounts=True, trim=True)
+    print(countsArray)
 
     # set_integration_time(r, oldIntegrationTime, CONFIGKEY)
 
@@ -283,4 +306,4 @@ if __name__ == '__main__':
     # config = rh.get_config(r, configKey)
     # print(config)
 
-    test_stream(r,10)
+    # test_stream(r,10)
