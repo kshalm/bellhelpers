@@ -240,6 +240,28 @@ def get_integration_time(r, configKey=None):
     currentIntTime = config['INT_TIME']
     return currentIntTime
 
+def test_stream(r,nTimes):
+    global LASTTIMESTAMP
+    t1 = time.time()
+    LASTTIMESTAMP = '0-0'
+    
+    msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP)
+    if msgCounts is not None:
+        LASTTIMESTAMP = msgCounts[-1][0]
+        counts = msgCounts[-1][1]
+        # print('Starting timestamp:', msgCounts[-1][0])
+    i = 0
+    while i<nTimes:
+        msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP)
+        if msgCounts is not None:
+            LASTTIMESTAMP = msgCounts[-1][0]
+            counts = msgCounts[-1][1]
+            i+=1
+            t2 = time.time()
+            print('Success', t2-t1)
+
+
+
 
 if __name__ == '__main__':
     redisIP = 'bellamd1.campus.nist.gov'
@@ -250,11 +272,15 @@ if __name__ == '__main__':
 
     # oldIntegrationTime = set_integration_time(r, 0.5, CONFIGKEY)
     # print('old integration time', oldIntegrationTime)
-    countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=-1, 
-        inlcudeNullCounts=True, trim=True)
-    print(countsArray)
+
+    # countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=-1, 
+    #     inlcudeNullCounts=True, trim=True)
+    # print(countsArray)
+
     # set_integration_time(r, oldIntegrationTime, CONFIGKEY)
 
     # configKey = 'config:timetaggers'
     # config = rh.get_config(r, configKey)
     # print(config)
+
+    test_stream(r,10)
