@@ -1,15 +1,24 @@
-import bellhelper.redisHelper as rh
+try:
+    import bellhelper.redisHelper as rh
+except:
+    import redisHelper as rh
 import time
 import numpy as np
+import math as math
 
 CHANNELCOUNTS = 'monitor:counts'
 LASTTIMESTAMP = '0-0'
 CONFIGKEY = 'config:timetaggers'
+# DEFAULTINTTIME = 0.2
 
 
-def get_counts(r, countPath='VV', numTries=-1, inlcudeNullCounts=False, trim=True):
+def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=False, trim=True):
     '''
     r: Redis connection
+    intTime: The amount of time to integrate for. This is rounded to the nearest integer multiple
+             of 0.2s in the default configuration. So asking for 1.5s of data will actually return 1.6s. 
+             It depends on what the redis integration time value is set to–if that changes from 0.2s to
+             say 0.3s, then the time will be rounded to the nearest integer multiple of 0.3s.
     countPath:  Which path to count from in case there are more than one detector per station. 
                 'VV' is the default and returns the standard singles/coinc counts in the coinc window.
                 'VV_PC' gives the counts in the specified Pockels cell windows
@@ -21,51 +30,70 @@ def get_counts(r, countPath='VV', numTries=-1, inlcudeNullCounts=False, trim=Tru
     Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
              or returns None if no valid counts obtained.
     '''
-    global LASTTIMESTAMP
+    global LASTTIMESTAMP, DEFAULTINTTIME
     if numTries == 0:
         numTries = 1
 
-    # if inlcudeNullCounts:
-    #     trim = False
-
-    msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP)
+    t1 = time.time()
+    
+    msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP, count=1)
     if msgCounts is not None:
-        LASTTIMESTAMP = msgCounts[-2][0]
-    # LASTTIMESTAMP = '0-0'
+        LASTTIMESTAMP = msgCounts[-1][0]
+        counts = msgCounts[-1][1]
+        defaultIntegrationTime = counts['integrationTime']
+
+    nSamples = int(math.ceil(float(intTime)/float(defaultIntegrationTime)))
 
     intTime = get_integration_time(r, CONFIGKEY)
-    # time.sleep(intTime)
     cont = True
 
     i = 0
-    while cont:
-        time.sleep(.1)
-        msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP, count=2)
-        if msgCounts is not None:
-            newTimeStamp = msgCounts[-1][0]
-            counts = msgCounts[-1][1]
-        else:
-            continue
-        isTrim = counts['isTrim']
-        countIntegrationTime = counts['integrationTime']
-        isCorrectIntegrationTime = float(
-            intTime) == float(countIntegrationTime)
-        countsValid = error_check(msgCounts, countPath, inlcudeNullCounts)
-        if countsValid and isCorrectIntegrationTime:
-            if not trim or (trim and isTrim):
-                LASTTIMESTAMP = newTimeStamp
+    countList = []
+    defaultNumTries = numTries
+
+    
+
+    for j in range(nSamples):
+        cont = True
+        numTries = defaultNumTries
+        while cont:
+            time.sleep(.1)
+            msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP, count=2)
+            if msgCounts is not None:
+                newTimeStamp = msgCounts[-1][0]
+                counts = msgCounts[-1][1]
+            else:
+                continue
+            isTrim = counts['isTrim']
+            currentIntegrationTime = counts['integrationTime']
+            isCorrectIntegrationTime = float(
+                defaultIntegrationTime) == float(currentIntegrationTime)
+            countsValid = error_check(msgCounts, countPath, inlcudeNullCounts)
+            if countsValid and isCorrectIntegrationTime:
+                if not trim or (trim and isTrim):
+                    LASTTIMESTAMP = newTimeStamp
+                    cont = False
+                    countList.append(counts[countPath])
+                    t2 = time.time()
+                    # print(j, 'Elapsed time:', t2-t1, intTime)
+                    break  # end the loop
+
+            if (i >= numTries-1) and (numTries > 0):
                 cont = False
-                break  # end the loop
+                return None  # No valid answer
+            i += 1
+            
 
-        if (i >= numTries-1) and (numTries > 0):
-            cont = False
-            return None  # No valid answer
-        i += 1
-
-    countVals = counts[countPath]
-    sA = int(countVals['As'])
-    sB = int(countVals['Bs'])
-    coinc = int(countVals['C'])
+    # t2 = time.time()
+    # print('Elapsed time:', t2-t1, intTime)
+    sA = 0
+    sB = 0 
+    coinc = 0 
+    for c in countList:
+        sA += int(c['As'])
+        sB += int(c['Bs'])
+        coinc += int(c['C'])
+    
     effA, effB, effAB = calc_efficiency(sA, sB, coinc)
     countArray = [sA, coinc, sB, effA, effB, effAB]
 
@@ -133,18 +161,8 @@ def error_check(msgCounts, countPath, inlcudeNullCounts=False):
                 countsValid = False
             if (currentSB > 0) and (currentSB == previousSB):
                 countsValid = False
-
-        # if not inlcudeNullCounts:
-        #     if (currentSA==0) or (currentSB==0):
-        #         countsValid = False
-        #         print('0 detected', countsValid)
-
-        # # print(currentSA, previousSA, currentSB, previousSB)
-        # if (currentSA == previousSA) or (currentSB == previousSB):
-        #     countsValid = False
     else:
         countsValid = False
-    # print('countsValid', countsValid)
 
     return countsValid
 
@@ -189,8 +207,8 @@ if __name__ == '__main__':
 
     # oldIntegrationTime = set_integration_time(r, .2, CONFIGKEY)
     # print('old integration time', oldIntegrationTime)
-    countsArray = get_counts(
-        r, countPath='VV', numTries=10, inlcudeNullCounts=True, trim=False)
+    countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=-1, 
+        inlcudeNullCounts=True, trim=True)
     print(countsArray)
     # set_integration_time(r, oldIntegrationTime, CONFIGKEY)
 
