@@ -10,7 +10,7 @@ CHANNELCOUNTS = 'monitor:counts'
 LASTTIMESTAMP = '0-0'
 CONFIGKEY = 'config:timetaggers'
 
-def loop_counts(r, channel, parse_function, intTime=0.2, inlcudeNullCounts=False,
+def loop_counts(r, channel, error_function, intTime=0.2, inlcudeNullCounts=False,
                  countPath='VV', numTries=-1, trim=True):
     if numTries == 0:
         numTries = 1
@@ -49,8 +49,8 @@ def loop_counts(r, channel, parse_function, intTime=0.2, inlcudeNullCounts=False
             else:
                 continue
 
-            goodCounts, LASTTIMESTAMP = parse_function(msgCounts, countPath, 
-                                        inlcudeNullCounts, trim)
+            goodCounts, LASTTIMESTAMP = parse_counts(msgCounts, countPath, 
+                                        inlcudeNullCounts, trim, error_function)
 
             if len(goodCounts)==0:
                 continue
@@ -85,6 +85,42 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
     Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
              or returns None if no valid counts obtained.
     '''     
+    countList = loop_counts(r, CHANNELCOUNTS, error_check, intTime=intTime, 
+                inlcudeNullCounts=inlcudeNullCounts, countPath=countPath, 
+                numTries=numTries, trim=trim)
+    countDict = {}
+    keys = countList[0].keys()
+    for countType in keys:
+        if countPath in countType: 
+            sA = 0
+            sB = 0 
+            coinc = 0 
+            for c in countList:
+                sA += int(c[countType]['As'])
+                sB += int(c[countType]['Bs'])
+                coinc += int(c[countType]['C'])
+            effA, effB, effAB = calc_efficiency(sA, sB, coinc)
+            countArray = [sA, coinc, sB, effA, effB, effAB]
+            countDict[countType] = countArray
+
+    return countDict
+
+def get_violation(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=False, trim=True):
+    '''
+    r: Redis connection
+    intTime: The amount of time to integrate for. This is rounded to the nearest integer multiple
+             of 0.2s in the default configuration. So asking for 1.5s of data will actually return 1.6s. 
+             It depends on what the redis integration time value is set to–if that changes from 0.2s to
+             say 0.3s, then the time will be rounded to the nearest integer multiple of 0.3s.
+    countPath:  Which path to count from in case there are more than one detector per station. 
+                'VV' is the default.
+    includeNullCounts: Allow either of the singles counts to be 0 if True. If False waits until a non
+                       zero singles is obtained. 
+    'numTries': The number of attempts to fetch a valid result.
+    'trim': Only return results where 'isTrim' is True.
+    Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
+             or returns None if no valid counts obtained.
+    '''     
     countList = loop_counts(r, CHANNELCOUNTS, parse_counts, intTime=intTime, 
                 inlcudeNullCounts=inlcudeNullCounts, countPath=countPath, 
                 numTries=numTries, trim=trim)
@@ -105,7 +141,7 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
 
     return countDict
 
-def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim):
+def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim, error_check_function):
     goodCounts = []
     lastTimeStamp = msgCounts[-2][0]
 
@@ -118,7 +154,7 @@ def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim):
         # currentIntegrationTime = newCount['integrationTime']
         # isCorrectIntegrationTime = float(
         #     defaultIntegrationTime) == float(currentIntegrationTime)
-        countsValid = error_check(oldCount[countPath], newCount[countPath], countPath, inlcudeNullCounts)
+        countsValid = error_check_function(oldCount[countPath], newCount[countPath], countPath, inlcudeNullCounts)
 
         if countsValid:# and isCorrectIntegrationTime:
             if not trim or (trim and isTrim):
@@ -126,6 +162,28 @@ def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim):
                 goodCounts.append(newCount)
 
     return goodCounts, lastTimeStamp
+
+# def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim):
+#     goodCounts = []
+#     lastTimeStamp = msgCounts[-2][0]
+
+#     for j in range(1,len(msgCounts)):
+#         oldCount = msgCounts[j-1][1]
+#         newCount = msgCounts[j][1]
+#         # print(newCount)
+
+#         isTrim = newCount['isTrim']
+#         # currentIntegrationTime = newCount['integrationTime']
+#         # isCorrectIntegrationTime = float(
+#         #     defaultIntegrationTime) == float(currentIntegrationTime)
+#         countsValid = error_check(oldCount[countPath], newCount[countPath], countPath, inlcudeNullCounts)
+
+#         if countsValid:# and isCorrectIntegrationTime:
+#             if not trim or (trim and isTrim):
+#                 # goodCounts.append(newCount[countPath])
+#                 goodCounts.append(newCount)
+
+#     return goodCounts, lastTimeStamp
 
 
 def calc_efficiency(sA, sB, coinc):
