@@ -64,10 +64,7 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
             time.sleep(.05)
             msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP, count=100)
             t2 = time.time()
-            print(i, j, 'Elapsed time:', t2-t1)
-            # print(msgCounts)
-            # print('')
-
+            # print(i, j, 'Elapsed time:', t2-t1)
             if (msgCounts is not None) and len(msgCounts)>=2:
                 pass
             else:
@@ -76,26 +73,21 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
             goodCounts, LASTTIMESTAMP = parse_counts(msgCounts, countPath, 
                                         inlcudeNullCounts, defaultIntegrationTime, trim)
 
-            # print(LASTTIMESTAMP)
-
             if len(goodCounts)==0:
                 continue
             else: 
                 countsToAdd = goodCounts[0:nSamples-j]
-                print(countsToAdd)
                 j+=len(countsToAdd)
                 countList+=countsToAdd
                 t2 = time.time()
-                print('SUCCESS', j, 'Elapsed time:', t2-t1, intTime, LASTTIMESTAMP)
-                print('')
+                # print('SUCCESS', j, 'Elapsed time:', t2-t1, intTime, LASTTIMESTAMP)
+                # print('')
                 break  # end the loop
             if (i >= numTries) and (numTries > 0):
                 cont = False
                 return None  # No valid answer
             
 
-    # t2 = time.time()
-    # print('Elapsed time:', t2-t1, intTime)
     countDict = {}
     print('')
     print('list', countList)
@@ -114,33 +106,6 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
             countArray = [sA, coinc, sB, effA, effB, effAB]
             countDict[countType] = countArray
 
-
-        # for key, val in count.items():
-        #     if countPath in key:
-        #         sA = 0
-        #         sB = 0 
-        #         coinc = 0 
-        #         for c in countList:
-        #             sA += int(c['As'])
-        #             sB += int(c['Bs'])
-        #             coinc += int(c['C'])
-
-    # print(countList)
-    # for count in countList:
-    #     for key, val in count.items():
-    #         if countPath in key:
-    #             sA = 0
-    #             sB = 0 
-    #             coinc = 0 
-    #             for c in countList:
-    #                 sA += int(c['As'])
-    #                 sB += int(c['Bs'])
-    #                 coinc += int(c['C'])
-    
-    # effA, effB, effAB = calc_efficiency(sA, sB, coinc)
-    # countArray = [sA, coinc, sB, effA, effB, effAB]
-
-    # return countArray
     return countDict
 
 def parse_counts(msgCounts, countPath, inlcudeNullCounts, defaultIntegrationTime, trim):
