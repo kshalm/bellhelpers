@@ -1,7 +1,9 @@
 try:
     import bellhelper.redisHelper as rh
-except:
+    import bellhelper.streamExceptions as stExcept
+except Exception as e:
     import redisHelper as rh
+    import streamExceptions as stExcept
 import time
 import numpy as np
 import math as math
@@ -12,69 +14,92 @@ CHANNELVIOLATION = 'monitor:violationstats'
 LASTTIMESTAMP = '0-0'
 CONFIGKEY = 'config:timetaggers'
 
-def loop_counts(r, channel, error_function, intTime=0.2, inlcudeNullCounts=False,
-                 countPath='VV', numTries=-1, trim=True):
-    if numTries == 0:
-        numTries = 1
+# def loop_counts(r, channel, error_function, errorArgs, intTime=0.2, numTries=-1, sleepTime=0.05, timeOut=None):
+#     if numTries == 0:
+#         numTries = 1
 
-    msgCounts = rh.get_last_entry(r, channel, count=2)
-    if msgCounts is not None:
-        # Need to grab the second to last timestamp to start with.
-        # We need the current and last 
-        LASTTIMESTAMP = msgCounts[0][0]
-        counts = msgCounts[1][1]
-        defaultIntegrationTime = counts['integrationTime']
+#     msgCounts = rh.get_last_entry(r, channel, count=2)
+#     if msgCounts is not None:
+#         # Need to grab the second to last timestamp to start with.
+#         # We need the current and last 
+#         LASTTIMESTAMP = msgCounts[0][0]
+#         counts = msgCounts[1][1]
+#         defaultIntegrationTime = counts['integrationTime']
 
-    nSamples = int(math.ceil(float(intTime)/float(defaultIntegrationTime)))
-    cont = True
+#     nSamples = int(math.ceil(float(intTime)/float(defaultIntegrationTime)))
+#     cont = True
 
-    i = 0
-    countList = []
-    defaultNumTries = numTries
-    t1 = time.time()
+#     i = 0
+#     countList = []
+#     defaultNumTries = numTries
+#     t1 = time.time()
 
-    j=0
-    while j<nSamples:
-        cont = True
-        numTries = defaultNumTries
-        i = 0
-        while cont:
-            i+=1
-            time.sleep(.05)
-            msgCounts = rh.get_data(r, channel, LASTTIMESTAMP)
-            t2 = time.time()
-            # print(i, j, 'Elapsed time:', t2-t1)
-            if (msgCounts is not None) and len(msgCounts)>=2:
-                # Need to make sure that an update has occured which requires
-                # at least two new entries since the first one.
-                pass
-            else:
-                # print('trying again not enough data')
-                if (i >= numTries) and (numTries > 0):
-                    cont = False
-                    return None 
-                continue
+#     j=0
+#     while j<nSamples:
+#         cont = True
+#         numTries = defaultNumTries
+#         i = 0
+#         while cont:
+#             i+=1
+#             time.sleep(sleepTime)
+#             msgCounts = rh.get_data(r, channel, LASTTIMESTAMP)
+#             # t2 = time.time()
+#             # print(i, j, 'Elapsed time:', t2-t1)
+#             if (msgCounts is not None) and len(msgCounts)>=2:
+#                 # print(msgCounts)
+#                 # Need to make sure that an update has occured which requires
+#                 # at least two new entries since the first one.
+#                 goodCounts, LASTTIMESTAMP = parse_counts(msgCounts, error_function, errorArgs) 
 
-            goodCounts, LASTTIMESTAMP = parse_counts(msgCounts, countPath, 
-                                        inlcudeNullCounts, trim, error_function)
+#                                         # inlcudeNullCounts, trim, error_function)
 
-            if len(goodCounts)==0:
-                # print('no good counts')
-                continue
-            else: 
-                countsToAdd = goodCounts[0:nSamples-j]
-                j+=len(countsToAdd)
-                countList+=countsToAdd
-                t2 = time.time()
-                # print('SUCCESS',  'Elapsed time:', t2-t1, intTime, LASTTIMESTAMP)
-                break  # end the loop
-            if (i >= numTries) and (numTries > 0):
-                cont = False
-                return None  # No valid answer
-    return countList
+#                 if len(goodCounts)==0:
+#                     continue
+#                 else: 
+#                     samplesAvailable = len(goodCounts)
+#                     samplesLeftToAdd = nSamples - j 
+
+#                     if samplesAvailable<=samplesLeftToAdd:
+#                         countsToAdd = goodCounts 
+#                     else:
+#                         countsToAdd = goodCounts[-samplesLeftToAdd:-1]
+#                     j+=len(countsToAdd)
+#                     countList+=countsToAdd
+#                     break  # end the loop
+#             else:
+#                 timeElapsed = time.time() - t1
+#                 numTriesExceeded = (i >= numTries) and (numTries > 0)
+               
+#                 if numTriesExceeded:
+#                     err = stExcept.StreamFrozenException(channel, numTries=numTries, 
+#                         timeElapsed=timeElapsed)
+#                     raise err
+
+#                 timeOutExceeded = (timeOut is not None) and (timeElapsed>timeOut)
+#                 if timeOutExceeded:
+#                     err = stExcept.streamTimeoutException(channel, timeElapsed=timeElapsed)
+#                     raise err
+#                 continue
+
+#     return countList
 
 
-def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=False, trim=True):
+# def parse_counts(msgCounts, error_function, errorArgs):
+#     goodCounts = []
+#     lastTimeStamp = msgCounts[-2][0]
+
+#     for j in range(1,len(msgCounts)):
+#         oldCount = msgCounts[j-1][1]
+#         newCount = msgCounts[j][1]
+
+#         countsValid = error_function(oldCount, newCount, **errorArgs)
+
+#         if countsValid:
+#             goodCounts.append(newCount)
+
+#     return goodCounts, lastTimeStamp
+
+def get_counts(r, intTime=0.2, countPath='VV', inlcudeNullCounts=False, trim=True, loopArgs={}):
     '''
     r: Redis connection
     intTime: The amount of time to integrate for. This is rounded to the nearest integer multiple
@@ -92,9 +117,9 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
     Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
              or returns None if no valid counts obtained.
     '''     
-    countList = loop_counts(r, CHANNELCOUNTS, error_check, intTime=intTime, 
-                inlcudeNullCounts=inlcudeNullCounts, countPath=countPath, 
-                numTries=numTries, trim=trim)
+    errCheckArgs = {'countPath': countPath, 'inlcudeNullCounts':inlcudeNullCounts, 'trim':trim}
+
+    countList = rh.loop_counts(r, CHANNELCOUNTS, error_check_counts, errCheckArgs, intTime=intTime, **loopArgs) #numTries=numTries, timeOut=timeOut, sleepTime=sleepTime)
 
     if countList is None:
         return None
@@ -116,7 +141,7 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
 
     return countDict
 
-def get_violation(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=False, trim=True):
+def get_violation(r, intTime=0.2, countPath='VV', inlcudeNullCounts=False, trim=True, loopArgs={}):
     '''
     r: Redis connection
     intTime: The amount of time to integrate for. This is rounded to the nearest integer multiple
@@ -132,9 +157,10 @@ def get_violation(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts
     Returns: A dictionary where each key is a countType that contains the countPath and the value is
                 a 2D numpy array of all the aggregated counts.
     '''     
-    countList = loop_counts(r, CHANNELVIOLATION, error_check_violation, intTime=intTime, 
-                inlcudeNullCounts=inlcudeNullCounts, countPath=countPath, 
-                numTries=numTries, trim=trim)
+    errCheckArgs = {'countPath': countPath, 'inlcudeNullCounts':inlcudeNullCounts, 'trim':trim}
+    loopArgs['intTime'] = intTime
+
+    countList = rh.loop_counts(r, CHANNELVIOLATION, error_check_violation, errCheckArgs, **loopArgs)
 
     if countList is None:
         return None
@@ -151,7 +177,7 @@ def get_violation(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts
             countDict[countType] = countMatrix
     return countDict
 
-def get_stats(r, intTime=0.5, countPath=('alice', 'bob'), numTries=-1, inlcudeNullCounts=False, trim=True):
+def get_stats(r, intTime=0.5, countPath=('alice', 'bob'), inlcudeNullCounts=False, loopArgs={}):
     '''
     r: Redis connection
     intTime: The amount of time to integrate for. This is rounded to the nearest integer multiple
@@ -169,9 +195,11 @@ def get_stats(r, intTime=0.5, countPath=('alice', 'bob'), numTries=-1, inlcudeNu
     Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
              or returns None if no valid counts obtained.
     '''     
-    countList = loop_counts(r, CHANNELSTATS, error_check_stats, intTime=intTime, 
-                inlcudeNullCounts=inlcudeNullCounts, countPath=countPath, 
-                numTries=numTries, trim=trim)
+    errCheckArgs = {'countPath': countPath, 'inlcudeNullCounts':inlcudeNullCounts}
+    loopArgs['intTime'] = intTime
+
+    countList = rh.loop_counts(r, CHANNELSTATS, error_check_stats, errCheckArgs, **loopArgs)
+ 
     if countList is None:
         return None
 
@@ -186,27 +214,6 @@ def get_stats(r, intTime=0.5, countPath=('alice', 'bob'), numTries=-1, inlcudeNu
             countDict[p] += np.array(c[p]).astype(int)
 
     return countDict
-
-def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim, error_check_function):
-    goodCounts = []
-    lastTimeStamp = msgCounts[-2][0]
-
-    for j in range(1,len(msgCounts)):
-        oldCount = msgCounts[j-1][1]
-        newCount = msgCounts[j][1]
-        # print(newCount)
-
-        isTrim = newCount['isTrim']
-        # currentIntegrationTime = newCount['integrationTime']
-        # isCorrectIntegrationTime = float(
-        #     defaultIntegrationTime) == float(currentIntegrationTime)
-        countsValid = error_check_function(oldCount, newCount, countPath, inlcudeNullCounts)
-
-        if countsValid:# and isCorrectIntegrationTime:
-            if not trim or (trim and isTrim):
-                goodCounts.append(newCount)
-
-    return goodCounts, lastTimeStamp
 
 
 def calc_efficiency(sA, sB, coinc):
@@ -224,7 +231,7 @@ def calc_efficiency(sA, sB, coinc):
         return eff
 
 
-def error_check(previousCounts, currentCounts, countPath, inlcudeNullCounts=False):
+def error_check_counts(previousCounts, currentCounts, countPath='VV', inlcudeNullCounts=False, trim=True):
     '''
     Function to make sure that the counts satisfy several conditions. These include 
     the singles not being null (if that option is specified), and that the counts have
@@ -240,6 +247,12 @@ def error_check(previousCounts, currentCounts, countPath, inlcudeNullCounts=Fals
     Returns countsValid: a boolean as to whether the counts are valid or not.
     '''
     countsValid = True
+
+    if trim==True and currentCounts['isTrim']==False:
+        # Trim check. If required, check that the current value is trimmed. If not, return False
+        countsValid = False
+        return countsValid 
+
     currentCounts = currentCounts[countPath]
     previousCounts = previousCounts[countPath]
 
@@ -253,11 +266,23 @@ def error_check(previousCounts, currentCounts, countPath, inlcudeNullCounts=Fals
 
     if not inlcudeNullCounts:
         # Null counts in the singles are not valid
-        if (currentSA == 0) or (currentSB == 0):
+        if (currentSA == 0): 
             countsValid = False
-        if (currentSA == previousSA) or (currentSB == previousSB):
-            # Make sure that the counts have updated
+            nullException = stExcept.nullCountsException('alice')
+            raise nullException
+        if (currentSB == 0):
             countsValid = False
+            nullException = stExcept.nullCountsException('bob')
+            raise nullException
+        # Make sure that the counts have updated
+        if (currentSA == previousSA): 
+            countsValid = False
+            repeatException = stExcept.TimeTaggerRepeatingException('alice')
+            raise repeatException
+        if (currentSB == previousSB): 
+            countsValid = False
+            repeatException = stExcept.TimeTaggerRepeatingException('bob')
+            raise repeatException
     else:
         # Include null counts in the results. Need to catch
         # the condition where one singles rate is 0. In this
@@ -266,12 +291,16 @@ def error_check(previousCounts, currentCounts, countPath, inlcudeNullCounts=Fals
         # singles counts make sure they are updating.
         if (currentSA > 0) and (currentSA == previousSA):
             countsValid = False
+            repeatException = stExcept.TimeTaggerRepeatingException('alice')
+            raise repeatException
         if (currentSB > 0) and (currentSB == previousSB):
             countsValid = False
+            repeatException = stExcept.TimeTaggerRepeatingException('bob')
+            raise repeatException
 
     return countsValid
 
-def error_check_violation(previousCounts, currentCounts, countPath, inlcudeNullCounts=False):
+def error_check_violation(previousCounts, currentCounts, countPath='VV', inlcudeNullCounts=False, trim=True):
     '''
     Function to make sure that the counts satisfy several conditions. These include 
     the singles not being null (if that option is specified), and that the counts have
@@ -287,12 +316,17 @@ def error_check_violation(previousCounts, currentCounts, countPath, inlcudeNullC
     Returns countsValid: a boolean as to whether the counts are valid or not.
     '''
     countsValid = True
-    currentCounts = currentCounts[countPath]
-    previousCounts = previousCounts[countPath]
 
-    currentCountArray = np.array(currentCounts)
-    previousCountArray = np.array(previousCounts)
-    # print(currentCountArray, previousCountArray)
+    if trim==True and currentCounts['isTrim']==False:
+        # Trim check. If required, check that the current value is trimmed. If not, return False
+        countsValid = False
+        return countsValid 
+
+    # currentCounts = currentCounts[countPath]
+    # previousCounts = previousCounts[countPath]
+
+    currentCountArray = np.array(currentCounts[countPath])
+    previousCountArray = np.array(previousCounts[countPath])
 
     currentSA = currentCountArray[:,1]
     currentSB = currentCountArray[:,2]
@@ -308,11 +342,29 @@ def error_check_violation(previousCounts, currentCounts, countPath, inlcudeNullC
 
     if not inlcudeNullCounts:
         # Null counts in the singles are not valid
-        if isAliceNull or isBobNull:
+        if isAliceNull: 
             countsValid = False
-        if doesAliceRepeat and doesBobRepeat:
-            # Make sure that the counts have updated
+            nullException = stExcept.nullCountsException('alice')
+            raise nullException
+        if isBobNull:
             countsValid = False
+            nullException = stExcept.nullCountsException('bob')
+            raise nullException
+        # Make sure that the counts have updated
+        if doesAliceRepeat: 
+            countsValid = False
+            repeatException = stExcept.TimeTaggerRepeatingException('alice')
+            raise repeatException
+        if doesBobRepeat: 
+            countsValid = False
+            repeatException = stExcept.TimeTaggerRepeatingException('bob')
+            raise repeatException
+
+        # if isAliceNull or isBobNull:
+        #     countsValid = False
+        # if doesAliceRepeat and doesBobRepeat:
+        #     # Make sure that the counts have updated
+            # countsValid = False
     else:
         # Include null counts in the results. Need to catch
         # the condition where one singles rate is 0. In this
@@ -321,12 +373,16 @@ def error_check_violation(previousCounts, currentCounts, countPath, inlcudeNullC
         # singles counts make sure they are updating.
         if (isAliceNull==False) and doesAliceRepeat:
             countsValid = False
+            repeatException = stExcept.TimeTaggerRepeatingException('alice')
+            raise repeatException
         if (isBobNull==False) and doesBobRepeat:
             countsValid = False
+            repeatException = stExcept.TimeTaggerRepeatingException('bob')
+            raise repeatException
 
     return countsValid
 
-def error_check_stats(previousCounts, currentCounts, countPath, inlcudeNullCounts=False):
+def error_check_stats(previousCounts, currentCounts, countPath='', inlcudeNullCounts=False):
     '''
     Function to make sure that the counts satisfy several conditions. These include 
     the singles not being null (if that option is specified), and that the counts have
@@ -347,7 +403,12 @@ def error_check_stats(previousCounts, currentCounts, countPath, inlcudeNullCount
         currentArray = np.array(currentCounts[p]).astype(int)
         previousArray = np.array(previousCounts[p]).astype(int)
         if np.sum(currentArray)==np.sum(previousArray):
-            countsValid = False 
+            countsValid = False
+            repeatException = stExcept.TimeTaggerRepeatingException(p)
+            raise repeatException
+        if np.sum(currentArray)==0:
+            ttagException = stExcept.nullCountsTimeTaggerException(p)
+            raise ttagException
     return countsValid
 
 
@@ -413,16 +474,28 @@ if __name__ == '__main__':
 
     # oldIntegrationTime = set_integration_time(r, 0.5, CONFIGKEY)
     # print('old integration time', oldIntegrationTime)
+    loopArgs = {} 
+    loopArgs['numTries']= 100
+    loopArgs['timeOut'] = 10
 
-    countsArray = get_violation(r, intTime = 1., countPath='VV', numTries=100, 
-        inlcudeNullCounts=True, trim=True)
-
-    # countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=100, 
+    # countsArray = get_violation(r, intTime = 1., countPath='VV', numTries=100, 
     #     inlcudeNullCounts=True, trim=True)
+    countsArray = ''
+    try:
+        # countsArray = get_counts(r, intTime = 1., countPath='VV', 
+        #     inlcudeNullCounts=False, trim=False, loopArgs=loopArgs)
 
-    # countsArray = get_stats(r, intTime = 1., numTries=100, 
-    #     inlcudeNullCounts=True, trim=True)
-    
+        # countsArray = get_violation(r, intTime = 1., countPath='VV', 
+        #     inlcudeNullCounts=False, trim=False, loopArgs=loopArgs)
+
+        countsArray = get_stats(r, intTime = 1., inlcudeNullCounts=False, loopArgs=loopArgs)
+
+    except stExcept.StreamException as e:
+        print(e)
+    # except (stExcept.StreamFrozenException, stExcept.streamTimeoutException) as e:
+    #     print(e)
+    # countsArray = get_stats(r, intTime = 1., numTries=100)
+
     print(countsArray)
 
     # set_integration_time(r, oldIntegrationTime, CONFIGKEY)

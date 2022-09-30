@@ -7,6 +7,12 @@ import json
 import redis
 # import copy
 import yaml
+import math
+import time
+try:
+    import bellhelper.streamExceptions as stExcept
+except Exception as e:
+    import streamExceptions as stExcept
 
 
 def connect_to_redis(redisConfig):
@@ -23,28 +29,14 @@ def get_last_entry(r, channel, count=1):
     msgDecode = [(ele[0].decode(), decode_dict(ele[1])) for ele in msg]
     return msgDecode
 
-# def get_last_entry(r, channel, count=1):
-#     '''returns a list of entries'''
-#     ret = r.xrevrange(channel, count=count)
-#     if not ret:
-#         return None
-#     ret = [decode_dict(ele[1]) for ele in ret]
-#     return ret
-
-
-# def get_last_timestamp(r, channel, count=1):
-#     '''returns a list of entries'''
-#     ret = r.xrevrange(channel, count=count)
-#     if not ret:
-#         return None
-#     ret = [ele[0].decode() for ele in ret]
-#     return ret
-
 def set_key_to_expire(r, channel, time):
     '''sets an expiration time for a channel.
     time must be an int number of seconds.
     Otherwise it is cast'''
     r.expire(channel, int(time))
+
+def stream_last_updated(r, channel):
+    pass
 
 
 def get_data(r, channel, lastTimeStamp, count=None):
@@ -129,3 +121,88 @@ def set_key_value(d, key, val):
             subD = set_key_value(v, key, val)
             d[k] = subD
     return d
+
+def loop_counts(r, channel, error_function, errorArgs, intTime=0.2, numTries=-1, sleepTime=0.05, timeOut=None):
+    if numTries == 0:
+        numTries = 1
+
+    msgCounts = get_last_entry(r, channel, count=2)
+    if msgCounts is not None:
+        # Need to grab the second to last timestamp to start with.
+        # We need the current and last 
+        LASTTIMESTAMP = msgCounts[0][0]
+        counts = msgCounts[1][1]
+        defaultIntegrationTime = counts['integrationTime']
+
+    nSamples = int(math.ceil(float(intTime)/float(defaultIntegrationTime)))
+    cont = True
+
+    i = 0
+    countList = []
+    defaultNumTries = numTries
+    t1 = time.time()
+
+    j=0
+    while j<nSamples:
+        cont = True
+        numTries = defaultNumTries
+        i = 0
+        while cont:
+            i+=1
+            time.sleep(sleepTime)
+            msgCounts = get_data(r, channel, LASTTIMESTAMP)
+            # t2 = time.time()
+            # print(i, j, 'Elapsed time:', t2-t1)
+            if (msgCounts is not None) and len(msgCounts)>=2:
+                # print(msgCounts)
+                # Need to make sure that an update has occured which requires
+                # at least two new entries since the first one.
+                goodCounts, LASTTIMESTAMP = parse_counts(msgCounts, error_function, errorArgs) 
+
+                                        # inlcudeNullCounts, trim, error_function)
+
+                if len(goodCounts)==0:
+                    continue
+                else: 
+                    samplesAvailable = len(goodCounts)
+                    samplesLeftToAdd = nSamples - j 
+
+                    if samplesAvailable<=samplesLeftToAdd:
+                        countsToAdd = goodCounts 
+                    else:
+                        countsToAdd = goodCounts[-samplesLeftToAdd:-1]
+                    j+=len(countsToAdd)
+                    countList+=countsToAdd
+                    break  # end the loop
+            else:
+                timeElapsed = time.time() - t1
+                numTriesExceeded = (i >= numTries) and (numTries > 0)
+               
+                if numTriesExceeded:
+                    err = stExcept.StreamFrozenException(channel, numTries=numTries, 
+                        timeElapsed=timeElapsed)
+                    raise err
+
+                timeOutExceeded = (timeOut is not None) and (timeElapsed>timeOut)
+                if timeOutExceeded:
+                    err = stExcept.streamTimeoutException(channel, timeElapsed=timeElapsed)
+                    raise err
+                continue
+
+    return countList
+
+
+def parse_counts(msgCounts, error_function, errorArgs):
+    goodCounts = []
+    lastTimeStamp = msgCounts[-2][0]
+
+    for j in range(1,len(msgCounts)):
+        oldCount = msgCounts[j-1][1]
+        newCount = msgCounts[j][1]
+
+        countsValid = error_function(oldCount, newCount, **errorArgs)
+
+        if countsValid:
+            goodCounts.append(newCount)
+
+    return goodCounts, lastTimeStamp
