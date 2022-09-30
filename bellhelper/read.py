@@ -7,6 +7,7 @@ import numpy as np
 import math as math
 
 CHANNELCOUNTS = 'monitor:counts'
+CHANNELVIOLATION = 'monitor:violationstats'
 LASTTIMESTAMP = '0-0'
 CONFIGKEY = 'config:timetaggers'
 
@@ -47,19 +48,24 @@ def loop_counts(r, channel, error_function, intTime=0.2, inlcudeNullCounts=False
                 # at least two new entries since the first one.
                 pass
             else:
+                # print('trying again not enough data')
+                if (i >= numTries) and (numTries > 0):
+                    cont = False
+                    return None 
                 continue
 
             goodCounts, LASTTIMESTAMP = parse_counts(msgCounts, countPath, 
                                         inlcudeNullCounts, trim, error_function)
 
             if len(goodCounts)==0:
+                # print('no good counts')
                 continue
             else: 
                 countsToAdd = goodCounts[0:nSamples-j]
                 j+=len(countsToAdd)
                 countList+=countsToAdd
                 t2 = time.time()
-                # print('SUCCESS', j, 'Elapsed time:', t2-t1, intTime, LASTTIMESTAMP)
+                # print('SUCCESS',  'Elapsed time:', t2-t1, intTime, LASTTIMESTAMP)
                 break  # end the loop
             if (i >= numTries) and (numTries > 0):
                 cont = False
@@ -88,6 +94,10 @@ def get_counts(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts=Fa
     countList = loop_counts(r, CHANNELCOUNTS, error_check, intTime=intTime, 
                 inlcudeNullCounts=inlcudeNullCounts, countPath=countPath, 
                 numTries=numTries, trim=trim)
+
+    if countList is None:
+        return None
+
     countDict = {}
     keys = countList[0].keys()
     for countType in keys:
@@ -118,27 +128,26 @@ def get_violation(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts
                        zero singles is obtained. 
     'numTries': The number of attempts to fetch a valid result.
     'trim': Only return results where 'isTrim' is True.
-    Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
-             or returns None if no valid counts obtained.
+    Returns: A dictionary where each key is a countType that contains the countPath and the value is
+                a 2D numpy array of all the aggregated counts.
     '''     
-    countList = loop_counts(r, CHANNELCOUNTS, parse_counts, intTime=intTime, 
+    countList = loop_counts(r, CHANNELVIOLATION, error_check_violation, intTime=intTime, 
                 inlcudeNullCounts=inlcudeNullCounts, countPath=countPath, 
                 numTries=numTries, trim=trim)
+
+    if countList is None:
+        return None
+
     countDict = {}
     keys = countList[0].keys()
     for countType in keys:
-        if countPath in countType: 
-            sA = 0
-            sB = 0 
-            coinc = 0 
+        if countPath in countType:
+            countMatrix = np.zeros((4,4)) 
             for c in countList:
-                sA += int(c[countType]['As'])
-                sB += int(c[countType]['Bs'])
-                coinc += int(c[countType]['C'])
-            effA, effB, effAB = calc_efficiency(sA, sB, coinc)
-            countArray = [sA, coinc, sB, effA, effB, effAB]
-            countDict[countType] = countArray
-
+                counts = np.array(c[countType])
+                countMatrix+=counts
+            countMatrix = countMatrix.astype(int)
+            countDict[countType] = countMatrix
     return countDict
 
 def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim, error_check_function):
@@ -158,32 +167,9 @@ def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim, error_check_func
 
         if countsValid:# and isCorrectIntegrationTime:
             if not trim or (trim and isTrim):
-                # goodCounts.append(newCount[countPath])
                 goodCounts.append(newCount)
 
     return goodCounts, lastTimeStamp
-
-# def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim):
-#     goodCounts = []
-#     lastTimeStamp = msgCounts[-2][0]
-
-#     for j in range(1,len(msgCounts)):
-#         oldCount = msgCounts[j-1][1]
-#         newCount = msgCounts[j][1]
-#         # print(newCount)
-
-#         isTrim = newCount['isTrim']
-#         # currentIntegrationTime = newCount['integrationTime']
-#         # isCorrectIntegrationTime = float(
-#         #     defaultIntegrationTime) == float(currentIntegrationTime)
-#         countsValid = error_check(oldCount[countPath], newCount[countPath], countPath, inlcudeNullCounts)
-
-#         if countsValid:# and isCorrectIntegrationTime:
-#             if not trim or (trim and isTrim):
-#                 # goodCounts.append(newCount[countPath])
-#                 goodCounts.append(newCount)
-
-#     return goodCounts, lastTimeStamp
 
 
 def calc_efficiency(sA, sB, coinc):
@@ -217,10 +203,6 @@ def error_check(previousCounts, currentCounts, countPath, inlcudeNullCounts=Fals
     Returns countsValid: a boolean as to whether the counts are valid or not.
     '''
     countsValid = True
-    # print('msg len', len(msgCounts))
-    # if len(msgCounts) > 1:
-    # currentCounts = msgCounts[-1][1][countPath]
-    # previousCounts = msgCounts[-2][1][countPath]
 
     currentSA = int(currentCounts['As'])
     currentSB = int(currentCounts['Bs'])
@@ -237,18 +219,68 @@ def error_check(previousCounts, currentCounts, countPath, inlcudeNullCounts=Fals
         if (currentSA == previousSA) or (currentSB == previousSB):
             # Make sure that the counts have updated
             countsValid = False
-        else:
-            # Include null counts in the results. Need to catch
-            # the condition where one singles rate is 0. In this
-            # case we allow it to stay 0 as that isn't necessarily
-            # a sign the timetagger server has frozen. If there are
-            # singles counts make sure they are updating.
-            if (currentSA > 0) and (currentSA == previousSA):
-                countsValid = False
-            if (currentSB > 0) and (currentSB == previousSB):
-                countsValid = False
-    # else:
-    #     countsValid = False
+    else:
+        # Include null counts in the results. Need to catch
+        # the condition where one singles rate is 0. In this
+        # case we allow it to stay 0 as that isn't necessarily
+        # a sign the timetagger server has frozen. If there are
+        # singles counts make sure they are updating.
+        if (currentSA > 0) and (currentSA == previousSA):
+            countsValid = False
+        if (currentSB > 0) and (currentSB == previousSB):
+            countsValid = False
+
+    return countsValid
+
+def error_check_violation(previousCounts, currentCounts, countPath, inlcudeNullCounts=False):
+    '''
+    Function to make sure that the counts satisfy several conditions. These include 
+    the singles not being null (if that option is specified), and that the counts have
+    changed from the previous record (makes sure that the timetaggers haven't frozen.)
+    msgCounts:  The raw data from the counts Redis stream. There should 
+                be two elements here.
+    countPath:  Which path to count from in case there are more than one detector per station. 
+                'VV' is the default and returns the standard singles/coinc counts in the coinc window.
+                'VV_PC' gives the counts in the specified Pockels cell windows
+                'VV_Background' give the counts outside the coincidence windows.
+    includeNullCounts: Allow either of the singles counts to be 0 if True. If False waits until a non
+                       zero singles is obtained.
+    Returns countsValid: a boolean as to whether the counts are valid or not.
+    '''
+    countsValid = True
+    currentCountArray = np.array(currentCounts)
+    previousCountArray = np.array(previousCounts)
+    # print(currentCountArray, previousCountArray)
+
+    currentSA = currentCountArray[:,1]
+    currentSB = currentCountArray[:,2]
+    previousSA = previousCountArray[:,1]
+    previousSB = previousCountArray[:,2]
+
+    isAliceNull = np.sum(currentSA)<1
+    isBobNull = np.sum(currentSB)<1
+
+    # Check and see if we have repeated counts. True means counts have not updated.
+    doesAliceRepeat = np.sum((currentSA-previousSA)!=0)==0
+    doesBobRepeat = np.sum((currentSB-previousSB)!=0)==0
+
+    if not inlcudeNullCounts:
+        # Null counts in the singles are not valid
+        if isAliceNull or isBobNull:
+            countsValid = False
+        if doesAliceRepeat and doesBobRepeat:
+            # Make sure that the counts have updated
+            countsValid = False
+    else:
+        # Include null counts in the results. Need to catch
+        # the condition where one singles rate is 0. In this
+        # case we allow it to stay 0 as that isn't necessarily
+        # a sign the timetagger server has frozen. If there are
+        # singles counts make sure they are updating.
+        if (isAliceNull==False) and doesAliceRepeat:
+            countsValid = False
+        if (isBobNull==False) and doesBobRepeat:
+            countsValid = False
 
     return countsValid
 
@@ -316,7 +348,10 @@ if __name__ == '__main__':
     # oldIntegrationTime = set_integration_time(r, 0.5, CONFIGKEY)
     # print('old integration time', oldIntegrationTime)
 
-    countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=-1, 
+    # countsArray = get_violation(r, intTime = 1., countPath='VV', numTries=100, 
+    #     inlcudeNullCounts=True, trim=True)
+
+    countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=100, 
         inlcudeNullCounts=True, trim=True)
     print(countsArray)
 
