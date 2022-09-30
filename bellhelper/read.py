@@ -29,8 +29,12 @@ def get_counts(r, intTime=0.2, countPath='VV', inlcudeNullCounts=False, trim=Tru
                        zero singles is obtained.
     'numTries': The number of attempts to fetch a valid result.
     'trim': Only return results where 'isTrim' is True.
-    Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
-             or returns None if no valid counts obtained.
+    loopArgs = A dictionary of kwargs to be passed to the loop_counts() function.
+
+    Returns: Dictionary of aggregated counts for each of the keys that contain countPath.
+            count array for each key=
+            [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
+            or returns None if no valid counts obtained.
     '''     
     errCheckArgs = {'countPath': countPath, 'inlcudeNullCounts':inlcudeNullCounts, 'trim':trim}
 
@@ -67,10 +71,11 @@ def get_violation(r, intTime=0.2, countPath='VV', inlcudeNullCounts=False, trim=
                 'VV' is the default.
     includeNullCounts: Allow either of the singles counts to be 0 if True. If False waits until a non
                        zero singles is obtained. 
-    'numTries': The number of attempts to fetch a valid result.
     'trim': Only return results where 'isTrim' is True.
-    Returns: A dictionary where each key is a countType that contains the countPath and the value is
-                a 2D numpy array of all the aggregated counts.
+    loopArgs = A dictionary of kwargs to be passed to the loop_counts() function.
+
+    Returns: A dictionary with the key=countPath and the value a numpy 4x4 array with the aggregated
+                violation counts.
     '''     
     errCheckArgs = {'countPath': countPath, 'inlcudeNullCounts':inlcudeNullCounts, 'trim':trim}
     loopArgs['intTime'] = intTime
@@ -99,15 +104,12 @@ def get_stats(r, intTime=0.5, countPath=('alice', 'bob'), inlcudeNullCounts=Fals
              of 0.2s in the default configuration. So asking for 1.5s of data will actually return 1.6s. 
              It depends on what the redis integration time value is set to–if that changes from 0.2s to
              say 0.3s, then the time will be rounded to the nearest integer multiple of 0.3s.
-    countPath:  Which path to count from in case there are more than one detector per station. 
-                'VV' is the default and returns the standard singles/coinc counts in the coinc window.
-                'VV_PC' gives the counts in the specified Pockels cell windows
-                'VV_Background' give the counts outside the coincidence windows.
+    countPath: The default for this are the parties in a tuple ('alice', 'bob')
     includeNullCounts: Allow either of the singles counts to be 0 if True. If False waits until a non
                        zero singles is obtained.
-    'numTries': The number of attempts to fetch a valid result.
-    'trim': Only return results where 'isTrim' is True.
-    Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
+    loopArgs = A dictionary of kwargs to be passed to the loop_counts() function.
+
+    Returns: a dictionary with the aggregated counts on each timetagger channel for each party.
              or returns None if no valid counts obtained.
     '''     
     errCheckArgs = {'countPath': countPath, 'inlcudeNullCounts':inlcudeNullCounts}
@@ -151,14 +153,15 @@ def error_check_counts(previousCounts, currentCounts, countPath='VV', inlcudeNul
     Function to make sure that the counts satisfy several conditions. These include 
     the singles not being null (if that option is specified), and that the counts have
     changed from the previous record (makes sure that the timetaggers haven't frozen.)
-    msgCounts:  The raw data from the counts Redis stream. There should 
-                be two elements here.
+    previousCounts: the data from the event before the one we are currently considering
+    currentCounts: the data from the event we are currently considering
     countPath:  Which path to count from in case there are more than one detector per station. 
                 'VV' is the default and returns the standard singles/coinc counts in the coinc window.
                 'VV_PC' gives the counts in the specified Pockels cell windows
                 'VV_Background' give the counts outside the coincidence windows.
     includeNullCounts: Allow either of the singles counts to be 0 if True. If False waits until a non
                        zero singles is obtained.
+    trim: If true, only accept counts where isTrim=True.
     Returns countsValid: a boolean as to whether the counts are valid or not.
     '''
     countsValid = True
@@ -217,17 +220,18 @@ def error_check_counts(previousCounts, currentCounts, countPath='VV', inlcudeNul
 
 def error_check_violation(previousCounts, currentCounts, countPath='VV', inlcudeNullCounts=False, trim=True):
     '''
-    Function to make sure that the counts satisfy several conditions. These include 
+    Function to make sure that the violation counts satisfy several conditions. These include 
     the singles not being null (if that option is specified), and that the counts have
     changed from the previous record (makes sure that the timetaggers haven't frozen.)
-    msgCounts:  The raw data from the counts Redis stream. There should 
-                be two elements here.
+    previousCounts: the data from the event before the one we are currently considering
+    currentCounts: the data from the event we are currently considering
     countPath:  Which path to count from in case there are more than one detector per station. 
                 'VV' is the default and returns the standard singles/coinc counts in the coinc window.
                 'VV_PC' gives the counts in the specified Pockels cell windows
                 'VV_Background' give the counts outside the coincidence windows.
     includeNullCounts: Allow either of the singles counts to be 0 if True. If False waits until a non
                        zero singles is obtained.
+    trim: If true, only accept counts where isTrim=True.
     Returns countsValid: a boolean as to whether the counts are valid or not.
     '''
     countsValid = True
@@ -274,12 +278,6 @@ def error_check_violation(previousCounts, currentCounts, countPath='VV', inlcude
             countsValid = False
             repeatException = stExcept.TimeTaggerRepeatingException('bob')
             raise repeatException
-
-        # if isAliceNull or isBobNull:
-        #     countsValid = False
-        # if doesAliceRepeat and doesBobRepeat:
-        #     # Make sure that the counts have updated
-            # countsValid = False
     else:
         # Include null counts in the results. Need to catch
         # the condition where one singles rate is 0. In this
@@ -302,12 +300,9 @@ def error_check_stats(previousCounts, currentCounts, countPath='', inlcudeNullCo
     Function to make sure that the counts satisfy several conditions. These include 
     the singles not being null (if that option is specified), and that the counts have
     changed from the previous record (makes sure that the timetaggers haven't frozen.)
-    msgCounts:  The raw data from the counts Redis stream. There should 
-                be two elements here.
-    countPath:  Which path to count from in case there are more than one detector per station. 
-                'VV' is the default and returns the standard singles/coinc counts in the coinc window.
-                'VV_PC' gives the counts in the specified Pockels cell windows
-                'VV_Background' give the counts outside the coincidence windows.
+    previousCounts: the data from the event before the one we are currently considering
+    currentCounts: the data from the event we are currently considering
+    countPath: The default for this are the parties in a tuple ('alice', 'bob')
     includeNullCounts: Allow either of the singles counts to be 0 if True. If False waits until a non
                        zero singles is obtained.
     Returns countsValid: a boolean as to whether the counts are valid or not.
@@ -358,6 +353,9 @@ def get_integration_time(r, configKey=None):
     return currentIntTime
 
 def test_stream(r,nTimes):
+    '''
+    For debugging purposes. Live stream the latest nTimes events.
+    '''
     global LASTTIMESTAMP
     t1 = time.time()
     LASTTIMESTAMP = '0-0'
@@ -366,7 +364,6 @@ def test_stream(r,nTimes):
     if msgCounts is not None:
         LASTTIMESTAMP = msgCounts[-1][0]
         counts = msgCounts[-1][1]
-        # print('Starting timestamp:', msgCounts[-1][0])
     i = 0
     while i<nTimes:
         msgCounts = rh.get_data(r, CHANNELCOUNTS, LASTTIMESTAMP)
