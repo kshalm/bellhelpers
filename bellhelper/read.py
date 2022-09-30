@@ -393,27 +393,26 @@ if __name__ == '__main__':
     loopArgs['numTries']= 100
     loopArgs['timeOut'] = 10
 
-    ut = rh.stream_last_updated(r, CHANNELCOUNTS)
-    alive, lastUpdate = rh.is_stream_alive(r, CHANNELCOUNTS, 0.4)
-    print(alive, lastUpdate)
+    # ut = rh.stream_last_updated(r, CHANNELCOUNTS)
+    # alive, lastUpdate, lastItem= rh.is_stream_alive(r, CHANNELCOUNTS, 0.4)
+    # print(alive, lastUpdate, lastItem)
 
-    # countsArray = ''
-    # try:
-    #     # countsArray = get_counts(r, intTime = 1., countPath='VV', 
-    #     #     inlcudeNullCounts=False, trim=False, loopArgs=loopArgs)
+    countsArray = ''
+    try:
+        # countsArray = get_counts(r, intTime = 1., countPath='VV', 
+        #     inlcudeNullCounts=False, trim=False, loopArgs=loopArgs)
 
-    #     # countsArray = get_violation(r, intTime = 1., countPath='VV', 
-    #     #     inlcudeNullCounts=False, trim=False, loopArgs=loopArgs)
+        # countsArray = get_violation(r, intTime = 1., countPath='VV', 
+        #     inlcudeNullCounts=False, trim=False, loopArgs=loopArgs)
 
-    #     countsArray = get_stats(r, intTime = 1., inlcudeNullCounts=False, loopArgs=loopArgs)
+        countsArray = get_stats(r, intTime = 1., inlcudeNullCounts=False, loopArgs=loopArgs)
 
-    # except stExcept.StreamException as e:
-    #     print(e)
-    # # except (stExcept.StreamFrozenException, stExcept.streamTimeoutException) as e:
-    # #     print(e)
-    # # countsArray = get_stats(r, intTime = 1., numTries=100)
+    except stExcept.StreamException as e:
+        print(e)
+    except (stExcept.StreamFrozenException, stExcept.streamTimeoutException) as e:
+        print(e)
 
-    # print(countsArray)
+    print(countsArray)
 
     # set_integration_time(r, oldIntegrationTime, CONFIGKEY)
 

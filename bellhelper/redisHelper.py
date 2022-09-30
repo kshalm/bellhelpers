@@ -47,12 +47,12 @@ def stream_last_updated(r, channel):
     redisTime = r.time() #returns (seconds, microseconds)
     redisCurrentTime = redisTime[0]+redisTime[1]*1./1000000.
     timeSinceLastUpdate = redisCurrentTime-lastStreamTime
-    return timeSinceLastUpdate
+    return timeSinceLastUpdate, msg[0]
 
 def is_stream_alive(r, channel, timeOut):
-    lastUpdate = stream_last_updated(r, channel)
+    lastUpdate, lastItem = stream_last_updated(r, channel)
     alive = lastUpdate <= timeOut
-    return alive, lastUpdate
+    return alive, lastUpdate, lastItem
 
 
 def get_data(r, channel, lastTimeStamp, count=None):
