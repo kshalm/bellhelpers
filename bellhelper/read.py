@@ -7,6 +7,7 @@ import numpy as np
 import math as math
 
 CHANNELCOUNTS = 'monitor:counts'
+CHANNELSTATS = 'monitor:stats'
 CHANNELVIOLATION = 'monitor:violationstats'
 LASTTIMESTAMP = '0-0'
 CONFIGKEY = 'config:timetaggers'
@@ -150,6 +151,42 @@ def get_violation(r, intTime=0.2, countPath='VV', numTries=-1, inlcudeNullCounts
             countDict[countType] = countMatrix
     return countDict
 
+def get_stats(r, intTime=0.5, countPath=('alice', 'bob'), numTries=-1, inlcudeNullCounts=False, trim=True):
+    '''
+    r: Redis connection
+    intTime: The amount of time to integrate for. This is rounded to the nearest integer multiple
+             of 0.2s in the default configuration. So asking for 1.5s of data will actually return 1.6s. 
+             It depends on what the redis integration time value is set to–if that changes from 0.2s to
+             say 0.3s, then the time will be rounded to the nearest integer multiple of 0.3s.
+    countPath:  Which path to count from in case there are more than one detector per station. 
+                'VV' is the default and returns the standard singles/coinc counts in the coinc window.
+                'VV_PC' gives the counts in the specified Pockels cell windows
+                'VV_Background' give the counts outside the coincidence windows.
+    includeNullCounts: Allow either of the singles counts to be 0 if True. If False waits until a non
+                       zero singles is obtained.
+    'numTries': The number of attempts to fetch a valid result.
+    'trim': Only return results where 'isTrim' is True.
+    Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
+             or returns None if no valid counts obtained.
+    '''     
+    countList = loop_counts(r, CHANNELSTATS, error_check_stats, intTime=intTime, 
+                inlcudeNullCounts=inlcudeNullCounts, countPath=countPath, 
+                numTries=numTries, trim=trim)
+    if countList is None:
+        return None
+
+    parties = countPath
+
+    countDict = {}
+    for p in parties:
+        countDict[p] = np.zeros(8).astype(int)
+
+    for c in countList:
+        for p in parties:
+            countDict[p] += np.array(c[p]).astype(int)
+
+    return countDict
+
 def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim, error_check_function):
     goodCounts = []
     lastTimeStamp = msgCounts[-2][0]
@@ -163,7 +200,7 @@ def parse_counts(msgCounts, countPath, inlcudeNullCounts, trim, error_check_func
         # currentIntegrationTime = newCount['integrationTime']
         # isCorrectIntegrationTime = float(
         #     defaultIntegrationTime) == float(currentIntegrationTime)
-        countsValid = error_check_function(oldCount[countPath], newCount[countPath], countPath, inlcudeNullCounts)
+        countsValid = error_check_function(oldCount, newCount, countPath, inlcudeNullCounts)
 
         if countsValid:# and isCorrectIntegrationTime:
             if not trim or (trim and isTrim):
@@ -203,6 +240,8 @@ def error_check(previousCounts, currentCounts, countPath, inlcudeNullCounts=Fals
     Returns countsValid: a boolean as to whether the counts are valid or not.
     '''
     countsValid = True
+    currentCounts = currentCounts[countPath]
+    previousCounts = previousCounts[countPath]
 
     currentSA = int(currentCounts['As'])
     currentSB = int(currentCounts['Bs'])
@@ -248,6 +287,9 @@ def error_check_violation(previousCounts, currentCounts, countPath, inlcudeNullC
     Returns countsValid: a boolean as to whether the counts are valid or not.
     '''
     countsValid = True
+    currentCounts = currentCounts[countPath]
+    previousCounts = previousCounts[countPath]
+
     currentCountArray = np.array(currentCounts)
     previousCountArray = np.array(previousCounts)
     # print(currentCountArray, previousCountArray)
@@ -282,6 +324,30 @@ def error_check_violation(previousCounts, currentCounts, countPath, inlcudeNullC
         if (isBobNull==False) and doesBobRepeat:
             countsValid = False
 
+    return countsValid
+
+def error_check_stats(previousCounts, currentCounts, countPath, inlcudeNullCounts=False):
+    '''
+    Function to make sure that the counts satisfy several conditions. These include 
+    the singles not being null (if that option is specified), and that the counts have
+    changed from the previous record (makes sure that the timetaggers haven't frozen.)
+    msgCounts:  The raw data from the counts Redis stream. There should 
+                be two elements here.
+    countPath:  Which path to count from in case there are more than one detector per station. 
+                'VV' is the default and returns the standard singles/coinc counts in the coinc window.
+                'VV_PC' gives the counts in the specified Pockels cell windows
+                'VV_Background' give the counts outside the coincidence windows.
+    includeNullCounts: Allow either of the singles counts to be 0 if True. If False waits until a non
+                       zero singles is obtained.
+    Returns countsValid: a boolean as to whether the counts are valid or not.
+    '''
+    countsValid = True
+    parties = countPath 
+    for p in parties:
+        currentArray = np.array(currentCounts[p]).astype(int)
+        previousArray = np.array(previousCounts[p]).astype(int)
+        if np.sum(currentArray)==np.sum(previousArray):
+            countsValid = False 
     return countsValid
 
 
@@ -348,11 +414,15 @@ if __name__ == '__main__':
     # oldIntegrationTime = set_integration_time(r, 0.5, CONFIGKEY)
     # print('old integration time', oldIntegrationTime)
 
-    # countsArray = get_violation(r, intTime = 1., countPath='VV', numTries=100, 
+    countsArray = get_violation(r, intTime = 1., countPath='VV', numTries=100, 
+        inlcudeNullCounts=True, trim=True)
+
+    # countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=100, 
     #     inlcudeNullCounts=True, trim=True)
 
-    countsArray = get_counts(r, intTime = 1., countPath='VV', numTries=100, 
-        inlcudeNullCounts=True, trim=True)
+    # countsArray = get_stats(r, intTime = 1., numTries=100, 
+    #     inlcudeNullCounts=True, trim=True)
+    
     print(countsArray)
 
     # set_integration_time(r, oldIntegrationTime, CONFIGKEY)
