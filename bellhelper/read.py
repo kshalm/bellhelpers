@@ -14,91 +14,6 @@ CHANNELVIOLATION = 'monitor:violationstats'
 LASTTIMESTAMP = '0-0'
 CONFIGKEY = 'config:timetaggers'
 
-# def loop_counts(r, channel, error_function, errorArgs, intTime=0.2, numTries=-1, sleepTime=0.05, timeOut=None):
-#     if numTries == 0:
-#         numTries = 1
-
-#     msgCounts = rh.get_last_entry(r, channel, count=2)
-#     if msgCounts is not None:
-#         # Need to grab the second to last timestamp to start with.
-#         # We need the current and last 
-#         LASTTIMESTAMP = msgCounts[0][0]
-#         counts = msgCounts[1][1]
-#         defaultIntegrationTime = counts['integrationTime']
-
-#     nSamples = int(math.ceil(float(intTime)/float(defaultIntegrationTime)))
-#     cont = True
-
-#     i = 0
-#     countList = []
-#     defaultNumTries = numTries
-#     t1 = time.time()
-
-#     j=0
-#     while j<nSamples:
-#         cont = True
-#         numTries = defaultNumTries
-#         i = 0
-#         while cont:
-#             i+=1
-#             time.sleep(sleepTime)
-#             msgCounts = rh.get_data(r, channel, LASTTIMESTAMP)
-#             # t2 = time.time()
-#             # print(i, j, 'Elapsed time:', t2-t1)
-#             if (msgCounts is not None) and len(msgCounts)>=2:
-#                 # print(msgCounts)
-#                 # Need to make sure that an update has occured which requires
-#                 # at least two new entries since the first one.
-#                 goodCounts, LASTTIMESTAMP = parse_counts(msgCounts, error_function, errorArgs) 
-
-#                                         # inlcudeNullCounts, trim, error_function)
-
-#                 if len(goodCounts)==0:
-#                     continue
-#                 else: 
-#                     samplesAvailable = len(goodCounts)
-#                     samplesLeftToAdd = nSamples - j 
-
-#                     if samplesAvailable<=samplesLeftToAdd:
-#                         countsToAdd = goodCounts 
-#                     else:
-#                         countsToAdd = goodCounts[-samplesLeftToAdd:-1]
-#                     j+=len(countsToAdd)
-#                     countList+=countsToAdd
-#                     break  # end the loop
-#             else:
-#                 timeElapsed = time.time() - t1
-#                 numTriesExceeded = (i >= numTries) and (numTries > 0)
-               
-#                 if numTriesExceeded:
-#                     err = stExcept.StreamFrozenException(channel, numTries=numTries, 
-#                         timeElapsed=timeElapsed)
-#                     raise err
-
-#                 timeOutExceeded = (timeOut is not None) and (timeElapsed>timeOut)
-#                 if timeOutExceeded:
-#                     err = stExcept.streamTimeoutException(channel, timeElapsed=timeElapsed)
-#                     raise err
-#                 continue
-
-#     return countList
-
-
-# def parse_counts(msgCounts, error_function, errorArgs):
-#     goodCounts = []
-#     lastTimeStamp = msgCounts[-2][0]
-
-#     for j in range(1,len(msgCounts)):
-#         oldCount = msgCounts[j-1][1]
-#         newCount = msgCounts[j][1]
-
-#         countsValid = error_function(oldCount, newCount, **errorArgs)
-
-#         if countsValid:
-#             goodCounts.append(newCount)
-
-#     return goodCounts, lastTimeStamp
-
 def get_counts(r, intTime=0.2, countPath='VV', inlcudeNullCounts=False, trim=True, loopArgs={}):
     '''
     r: Redis connection
@@ -478,25 +393,27 @@ if __name__ == '__main__':
     loopArgs['numTries']= 100
     loopArgs['timeOut'] = 10
 
-    # countsArray = get_violation(r, intTime = 1., countPath='VV', numTries=100, 
-    #     inlcudeNullCounts=True, trim=True)
-    countsArray = ''
-    try:
-        # countsArray = get_counts(r, intTime = 1., countPath='VV', 
-        #     inlcudeNullCounts=False, trim=False, loopArgs=loopArgs)
+    ut = rh.stream_last_updated(r, CHANNELCOUNTS)
+    alive, lastUpdate = rh.is_stream_alive(r, CHANNELCOUNTS, 0.4)
+    print(alive, lastUpdate)
 
-        # countsArray = get_violation(r, intTime = 1., countPath='VV', 
-        #     inlcudeNullCounts=False, trim=False, loopArgs=loopArgs)
+    # countsArray = ''
+    # try:
+    #     # countsArray = get_counts(r, intTime = 1., countPath='VV', 
+    #     #     inlcudeNullCounts=False, trim=False, loopArgs=loopArgs)
 
-        countsArray = get_stats(r, intTime = 1., inlcudeNullCounts=False, loopArgs=loopArgs)
+    #     # countsArray = get_violation(r, intTime = 1., countPath='VV', 
+    #     #     inlcudeNullCounts=False, trim=False, loopArgs=loopArgs)
 
-    except stExcept.StreamException as e:
-        print(e)
-    # except (stExcept.StreamFrozenException, stExcept.streamTimeoutException) as e:
+    #     countsArray = get_stats(r, intTime = 1., inlcudeNullCounts=False, loopArgs=loopArgs)
+
+    # except stExcept.StreamException as e:
     #     print(e)
-    # countsArray = get_stats(r, intTime = 1., numTries=100)
+    # # except (stExcept.StreamFrozenException, stExcept.streamTimeoutException) as e:
+    # #     print(e)
+    # # countsArray = get_stats(r, intTime = 1., numTries=100)
 
-    print(countsArray)
+    # print(countsArray)
 
     # set_integration_time(r, oldIntegrationTime, CONFIGKEY)
 

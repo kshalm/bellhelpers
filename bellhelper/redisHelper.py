@@ -36,7 +36,23 @@ def set_key_to_expire(r, channel, time):
     r.expire(channel, int(time))
 
 def stream_last_updated(r, channel):
-    pass
+    msg = get_last_entry(r, channel, count=1)
+    if msg is not None:
+        lastStreamTimeString = msg[0][0]
+    else:
+        return None
+    # print(lastStreamTimeString)
+    lastStreamTime = int(lastStreamTimeString.split('-')[0])
+    lastStreamTime = lastStreamTime*1./1000.
+    redisTime = r.time() #returns (seconds, microseconds)
+    redisCurrentTime = redisTime[0]+redisTime[1]*1./1000000.
+    timeSinceLastUpdate = redisCurrentTime-lastStreamTime
+    return timeSinceLastUpdate
+
+def is_stream_alive(r, channel, timeOut):
+    lastUpdate = stream_last_updated(r, channel)
+    alive = lastUpdate <= timeOut
+    return alive, lastUpdate
 
 
 def get_data(r, channel, lastTimeStamp, count=None):
