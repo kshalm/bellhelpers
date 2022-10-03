@@ -214,7 +214,8 @@ class MirrorControl():
         time.sleep(1.2)
         # time.sleep(.6)
         #######################
-        counts = self.get_power(self.intTime, countType, COUNTPATH)
+        counts = read.get_power(self.r, self.intTime,
+                                countType, COUNTPATH)
 
         if (counts > self.BESTCOUNTS):
             self.BESTPOS = self.get_all_positions()
@@ -234,7 +235,8 @@ class MirrorControl():
             q.put(msg)
         # print(msg)
 
-    def optimize_eff_scipy(self, path, countType='effAB', dir='xy', COUNTPATH='VV', q=None):
+    def optimize_eff_scipy(self, path, countType='effAB', dir='xy',
+                           COUNTPATH='VV', q=None):
         # global STARTPOS, BESTPOS, BESTCOUNTS, COUNTTYPE, channels, pathVChanX, pathVChanY, pathHChanX, pathHChanY
         self.COUNTTYPE = countType
         self.BESTCOUNTS = 0.
