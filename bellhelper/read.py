@@ -195,12 +195,12 @@ def error_check_counts(previousCounts, currentCounts, countPath='VV', inlcudeNul
         # Make sure that the counts have updated
         if (currentSA == previousSA): 
             countsValid = False
-            repeatException = stExcept.TimeTaggerRepeatingException('alice')
-            raise repeatException
+            # repeatException = stExcept.TimeTaggerRepeatingException('alice')
+            # raise repeatException
         if (currentSB == previousSB): 
             countsValid = False
-            repeatException = stExcept.TimeTaggerRepeatingException('bob')
-            raise repeatException
+            # repeatException = stExcept.TimeTaggerRepeatingException('bob')
+            # raise repeatException
     else:
         # Include null counts in the results. Need to catch
         # the condition where one singles rate is 0. In this
@@ -209,12 +209,12 @@ def error_check_counts(previousCounts, currentCounts, countPath='VV', inlcudeNul
         # singles counts make sure they are updating.
         if (currentSA > 0) and (currentSA == previousSA):
             countsValid = False
-            repeatException = stExcept.TimeTaggerRepeatingException('alice')
-            raise repeatException
+            # repeatException = stExcept.TimeTaggerRepeatingException('alice')
+            # raise repeatException
         if (currentSB > 0) and (currentSB == previousSB):
             countsValid = False
-            repeatException = stExcept.TimeTaggerRepeatingException('bob')
-            raise repeatException
+            # repeatException = stExcept.TimeTaggerRepeatingException('bob')
+            # raise repeatException
 
     return countsValid
 
@@ -272,12 +272,12 @@ def error_check_violation(previousCounts, currentCounts, countPath='VV', inlcude
         # Make sure that the counts have updated
         if doesAliceRepeat: 
             countsValid = False
-            repeatException = stExcept.TimeTaggerRepeatingException('alice')
-            raise repeatException
+            # repeatException = stExcept.TimeTaggerRepeatingException('alice')
+            # raise repeatException
         if doesBobRepeat: 
             countsValid = False
-            repeatException = stExcept.TimeTaggerRepeatingException('bob')
-            raise repeatException
+            # repeatException = stExcept.TimeTaggerRepeatingException('bob')
+            # raise repeatException
     else:
         # Include null counts in the results. Need to catch
         # the condition where one singles rate is 0. In this
@@ -286,12 +286,12 @@ def error_check_violation(previousCounts, currentCounts, countPath='VV', inlcude
         # singles counts make sure they are updating.
         if (isAliceNull==False) and doesAliceRepeat:
             countsValid = False
-            repeatException = stExcept.TimeTaggerRepeatingException('alice')
-            raise repeatException
+            # repeatException = stExcept.TimeTaggerRepeatingException('alice')
+            # raise repeatException
         if (isBobNull==False) and doesBobRepeat:
             countsValid = False
-            repeatException = stExcept.TimeTaggerRepeatingException('bob')
-            raise repeatException
+            # repeatException = stExcept.TimeTaggerRepeatingException('bob')
+            # raise repeatException
 
     return countsValid
 
