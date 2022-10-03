@@ -2,11 +2,10 @@
 # coding: utf-8
 import numpy as np
 from bellMotors.motorControl import MotorController
-import read as read
-#import bellhelper.read as read
+import bellhelper.read as read
 import bellhelper as bh
 import logging
-from logging.handlers import TimedRotatingFileHandler
+from bellhelper.dailylogs import MyTimedRotatingFileHandler
 import datetime
 from scipy.optimize import minimize
 import time
@@ -21,23 +20,6 @@ from functools import wraps
 # "https://stackoverflow.com/questions/27840094/
 # write-a-header-at-every-logfile-that-is-created-with-
 # a-time-rotating-logger"
-
-
-class MyTimedRotatingFileHandler(TimedRotatingFileHandler):
-    def __init__(self, logfile, when, interval,
-                 backupCount, header_updater, logger):
-        super(MyTimedRotatingFileHandler, self).__init__(logfile,
-                                                         when,
-                                                         interval,
-                                                         backupCount)
-        self._header_updater = header_updater
-        self._log = logger
-
-    def doRollover(self):
-        super(MyTimedRotatingFileHandler, self).doRollover()
-        if self._header_updater is not None:
-            self._log.info(self._header_updater())
-
 
 '''
 # create time-rotating log handler

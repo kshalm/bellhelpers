@@ -11,10 +11,10 @@ from scipy.optimize import minimize
 # from scipy.optimize import basinhopping
 # from scipy import optimize
 from bellMotors.motorControlZaber import MotorControllerZaber
+from bellhelper.dailylogs import MyTimedRotatingFileHandler
 import bellhelper.read as read
 import logging
 import datetime
-from logging.handlers import TimedRotatingFileHandler
 # import bellhelper.redisHelper as rh
 
 # Writing a new class that inherits from the TimedRotatingFileHandler
@@ -23,22 +23,6 @@ from logging.handlers import TimedRotatingFileHandler
 # "https://stackoverflow.com/questions/27840094/
 # write-a-header-at-every-logfile-that-is-created-with-
 # a-time-rotating-logger"
-
-
-class MyTimedRotatingFileHandler(TimedRotatingFileHandler):
-    def __init__(self, logfile, when, interval,
-                 backupCount, header_updater, logger):
-        super(MyTimedRotatingFileHandler, self).__init__(logfile,
-                                                         when,
-                                                         interval,
-                                                         backupCount)
-        self._header_updater = header_updater
-        self._log = logger
-
-    def doRollover(self):
-        super(MyTimedRotatingFileHandler, self).doRollover()
-        if self._header_updater is not None:
-            self._log.info(self._header_updater())
 
 
 class MirrorControl():
@@ -153,26 +137,6 @@ class MirrorControl():
             pos[i] = self.zb.get_position(self.channels[i])
         return pos
 
-    def get_power(self, intTime, COUNTTYPE='SB', COUNTPATH='VV'):
-        # counts = read.get_power(intTime, COUNTPATH)[COUNTPATH]
-        counts = read.get_counts(self.r, dt=0.2, countPath='VV')
-
-        if COUNTTYPE == 'SA':
-            val = counts[0]
-        elif COUNTTYPE == 'SB':
-            val = counts[2]
-        elif COUNTTYPE == 'Coinc':
-            val = counts[1]
-        elif COUNTTYPE == 'effA':
-            val = counts[3]
-        elif COUNTTYPE == 'effB':
-            val = counts[4]
-        elif COUNTTYPE == 'All':
-            val = counts
-        else:
-            val = counts[5]
-        return val
-
     def check_bounds(self, pos, startP):
         L = 6000 * 3
         minBounds = startP - L
@@ -278,7 +242,8 @@ class MirrorControl():
         oldIntTime = read.set_integration_time(
             self.r, self.intTime, self.CONFIGKEY)
 
-        if dir == 'y' or dir == 'xy' or dir == 'y single' or dir == 'xy single':
+        if (dir == 'y' or dir == 'xy' or dir == 'y single'
+                or dir == 'xy single'):
             self.move_all_to_position(self.STARTPOS)
             time.sleep(3)
             params['channels'] = yChan
@@ -296,7 +261,8 @@ class MirrorControl():
             self.log_output("", q)
             self.BESTCOUNTS = 0.
 
-        if dir == 'x' or dir == 'xy' or dir == 'x single' or dir == 'xy single':
+        if (dir == 'x' or dir == 'xy' or dir == 'x single'
+                or dir == 'xy single'):
             self.move_all_to_position(self.STARTPOS)
             time.sleep(3)
             params['channels'] = xChan
