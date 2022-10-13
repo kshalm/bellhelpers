@@ -1,7 +1,7 @@
 try:
     import bellhelper.redisHelper as rh
     import bellhelper.streamExceptions as stExcept
-except Exception as e:
+except Exception:
     import redisHelper as rh
     import streamExceptions as stExcept
 import time
@@ -20,7 +20,6 @@ def get_power(redis_db, intTime,
               COUNTPATH='VV',
               includeNullCounts=False,
               trim=True):
-    # counts = read.get_power(intTime, COUNTPATH)[COUNTPATH]
     counts = get_counts(redis_db, intTime=intTime,
                         countPath=COUNTPATH,
                         includeNullCounts=includeNullCounts,
