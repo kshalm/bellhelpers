@@ -1,34 +1,39 @@
-import select
+# import select
 import numpy as np
 # import socket
 import time
-import re
-import traceback
-import os
+# import re
+# import traceback
+# import os
 import yaml
-from multiprocessing import Process, Queue
+from multiprocessing import Queue  # , Process
 import threading
 import copy
-import zlib
+import bellhelper.data.processBellData as pdbell
+# import zlib
+
 try:
     import bellhelper.data.coinclib as cl
-    import bellhelper.data.singletimetagger as tt 
+    import bellhelper.data.singletimetagger as tt
     import bellhelper.data.analysis_library as al
 except Exception:
     import coinclib as cl
     import singletimetagger as tt
-    import analysis_library as al 
+    import analysis_library as al
+
 
 class TimeTaggers():
     """
     Simple class to connect to the two time taggers, stream data, and find the
     delays/time tag offsets.
     """
-    def __init__(self, config, offline=False, configFile=None):#configFile = 'client.yaml'):
+
+    # configFile = 'client.yaml'):
+    def __init__(self, config, offline=False, configFile=None):
         # self.configFile = configFile
         self.offline = offline
         self.config = config
-        self.timeTaggers = {'alice':{'name':'alice'}, 'bob':{'name':'bob'}}
+        self.timeTaggers = {'alice': {'name': 'alice'}, 'bob': {'name': 'bob'}}
         self.configFile = configFile
         self.simple_init()
 
@@ -44,11 +49,10 @@ class TimeTaggers():
             ip2 = self.config['bob']['ip']
             port2 = self.config['bob']['port']
 
-            if (ip1==ip2) and (port1==port2):
+            if (ip1 == ip2) and (port1 == port2):
                 self.singleServer = True
             else:
                 self.singleServer = False
-
 
             det1 = self.config['alice']['channelmap']['detector']
             det2 = self.config['bob']['channelmap']['detector']
@@ -56,38 +60,37 @@ class TimeTaggers():
             self.timeTaggers['alice'] = tt.TimeTagger(ip1, port1, det1)
             self.timeTaggers['bob'] = tt.TimeTagger(ip2, port2, det2)
 
-
     def load_config_data(self):
-        config_fp = open(self.configFile,'r')
+        config_fp = open(self.configFile, 'r')
         config = yaml.safe_load(config_fp)
         config_fp.close()
         self.config = config
 
     def save_config_data(self):
         if self.config is not None:
-            config_fp = open(self.configFile,'w')
+            config_fp = open(self.configFile, 'w')
             yaml.dump(self.config, config_fp, default_flow_style=False)
             config_fp.close()
         else:
             print('Config not present')
 
-    def close(self):
-        for key in ['alice','bob']:
-            try:
-                self.timeTaggers[key].close()
-            except:
-                pass
+    # def close(self):
+    #     for key in ['alice', 'bob']:
+    #         try:
+    #             self.timeTaggers[key].close()
+    #         except Exception:
+    #             pass
 
     def reconnect(self):
         self.simple_init()
         # for key in ['alice','bob']:
         #     self.timeTaggers[key].connect(self.config[key]['ip'], self.config[key]['port'])
 
-
     def log_start_twottag(self, filestr):
         files = {}
         for key in self.timeTaggers.keys():
-            filename = self.timeTaggers[key].start_logging_to_file(key+'_'+filestr)
+            filename = self.timeTaggers[key].start_logging_to_file(
+                key+'_'+filestr)
             files[key] = filename
         return(files)
 
@@ -102,7 +105,7 @@ class TimeTaggers():
         for key in self.timeTaggers.keys():
             self.timeTaggers[key].close()
 
-    def get_stats(self, q = '', dt = 0.5):
+    def get_stats(self, q='', dt=0.5):
         tableDict = {}
         keys = ['alice', 'bob']
         q = {}
@@ -111,8 +114,9 @@ class TimeTaggers():
         for key in keys:
             q[key] = Queue()
             ttagger = self.timeTaggers[key]
-            t[key]  = threading.Thread(target=self._fetch_stats, args=(ttagger, dt, q[key]) )
-        
+            t[key] = threading.Thread(
+                target=self._fetch_stats, args=(ttagger, dt, q[key]))
+
         for key in keys:
             t[key].start()
 
@@ -123,22 +127,20 @@ class TimeTaggers():
             counts = q[key].get(timeout=dt*5)
             tableDict[key] = counts
 
-
         # for key in self.timeTaggers.keys():
         #     counts = self.timeTaggers[key].get_stats(dt)
         #     tableDict[key] = counts
 
         if self.singleServer:
             tableDict['bob'] = tableDict['alice']
-  
+
         return(tableDict)
 
     def _fetch_stats(self, ttagger, dt, q):
         counts = ttagger.get_stats(dt)
         q.put(counts)
 
-
-    def get_data(self,ttager, dt, q=''):
+    def get_data(self, ttager, dt, q=''):
         # t1 = time.time()
         data = ttager.stream_server(dt)
         # print(data)
@@ -147,12 +149,13 @@ class TimeTaggers():
         q.put(data)
         return data
 
-    def fetch_data(self,intTime):
+    def fetch_data(self, intTime):
         q = {'alice': Queue(), 'bob': Queue()}
         t = {}
         for key in q:
-            t[key]  = threading.Thread(target=self.get_data, args=(self.timeTaggers[key], intTime, q[key]) )
-        
+            t[key] = threading.Thread(target=self.get_data, args=(
+                self.timeTaggers[key], intTime, q[key]))
+
         for key in q:
             t[key].start()
 
@@ -162,17 +165,16 @@ class TimeTaggers():
         rawData = {}
         for key in q:
             # try:
-            data = q[key].get(timeout = 2.)
-            data['ch'] = data['ch'] -1
+            data = q[key].get(timeout=2.)
+            data['ch'] = data['ch'] - 1
             rawData[key] = data
 
-            # except:
+            # except Exception:
             #     rawData[key] = None
         return(rawData)
 
-
     def get_ch_settings(self):
-        params = {'alice': {}, 'bob':{}}
+        params = {'alice': {}, 'bob': {}}
         for key in params:
             params[key]['radius'] = self.config[key]['coin_radius'] - 1
             params[key]['channels'] = self.config[key]['channelmap']
@@ -185,7 +187,7 @@ class TimeTaggers():
         params['findPk'] = self.config['analysis']['findPk']
         return(params)
 
-    def find_pc_turn_on_off(self,intTime):
+    def find_pc_turn_on_off(self, intTime):
 
         rawData = self.fetch_data(intTime)
         #rawData['bob'] = rawData['alice']
@@ -197,29 +199,31 @@ class TimeTaggers():
         # only choose one of the detectors from Alice and Bob to start
         aliceDetCh = self.config['alignchannel']['alice']
         bobDetCh = self.config['alignchannel']['bob']
-        
+
         paramsS['alice']['channels']['detector'] = aliceDetCh
         paramsS['bob']['channels']['detector'] = bobDetCh
 
         pcSS = al.calc_pc_on_off_slots(rawData, paramsS)
         # print('finished', pcSS)
 
-        config_fp = open(self.configFile,'r+')
+        config_fp = open(self.configFile, 'r+')
         config = yaml.load(config_fp)
         config_fp.close()
 
-        config['pockelProp']['analysis']['alice']['start'] = int(pcSS['alice'][0])
-        config['pockelProp']['analysis']['alice']['stop'] = int(pcSS['alice'][1])
+        config['pockelProp']['analysis']['alice']['start'] = int(
+            pcSS['alice'][0])
+        config['pockelProp']['analysis']['alice']['stop'] = int(
+            pcSS['alice'][1])
         config['pockelProp']['analysis']['bob']['start'] = int(pcSS['bob'][0])
         config['pockelProp']['analysis']['bob']['stop'] = int(pcSS['bob'][1])
         config['pockelProp']['start'] = int(pcSS['alice'][0])
 
-        config_fp = open(self.configFile,'w')
+        config_fp = open(self.configFile, 'w')
         yaml.dump(config, config_fp, default_flow_style=False)
         config_fp.close()
         return(pcSS)
 
-    def find_sync_offset2(self,intTime, rawData = None):
+    def find_sync_offset2(self, intTime, rawData=None):
 
         if rawData is None:
             rawData = self.fetch_data(intTime)
@@ -243,13 +247,11 @@ class TimeTaggers():
         syncTTagDiff = offsets['syncTTagDiff']
         pkIdx = offsets['pkIdx']
 
-
         # abDelay, offsetLaserPulse, ttagOffset, syncTTagDiff = cl.calc_offset(rawData, paramsS, divider)
         # print('finished finding offset')
         self.ttagOffset = ttagOffset
         self.offsetLaserPulse = offsetLaserPulse
         self.abDelay = abDelay
-
 
         self.config['analysis']['ttagOffset'] = int(ttagOffset)
         self.config['analysis']['pulseABDelay'] = int(offsetLaserPulse)
@@ -259,10 +261,9 @@ class TimeTaggers():
         # config_fp = open(self.configFile,'w')
         # yaml.dump(self.config, config_fp, default_flow_style=False)
         # config_fp.close()
-        return self.config, pkIdx 
+        return self.config, pkIdx
 
-
-    def update(self, dt = 'default'):
+    def update(self, dt='default'):
         # self.load_config_data()
         if dt == 'default':
             dt = self.config['INT_TIME']
@@ -273,31 +274,32 @@ class TimeTaggers():
 
         margin = min(0.4*dt, 0.2)
         margin = max(margin, 0.075)
-        timeToFetch = dt+ margin
+        timeToFetch = dt + margin
         time.sleep(dt)
         rawData = self.fetch_data(timeToFetch)
 
         counts, params = self.analyze_data(rawData, dt)
         return(counts, params)
 
-    def process_files(self,files, config):
+    def process_files(self, files, config):
         parties = ['alice', 'bob']
         fAlice = files['alice']
         fBob = files['bob']
-        if len(fAlice)!= len(fBob):
+        if len(fAlice) != len(fBob):
             print('Alice and Bob need the same number of files')
             return None
-        else: 
+        else:
             nFiles = len(fAlice)
 
         nSyncs = 300000
-        ttagDataStructure = np.dtype([('ch','u1'),('ttag','u8'),('xfer','u2')])
+        ttagDataStructure = np.dtype(
+            [('ch', 'u1'), ('ttag', 'u8'), ('xfer', 'u2')])
         rawData = []
         configArray = []
         for i in range(nFiles):
             dataDict = {}
-            dataDict['alice'] = np.fromfile(fAlice[i],dtype=ttagDataStructure)
-            dataDict['bob'] = np.fromfile(fBob[i],dtype=ttagDataStructure)
+            dataDict['alice'] = np.fromfile(fAlice[i], dtype=ttagDataStructure)
+            dataDict['bob'] = np.fromfile(fBob[i], dtype=ttagDataStructure)
             dataDict['alice']['ch'] -= 1
             dataDict['bob']['ch'] -= 1
             rawData.append(dataDict)
@@ -305,17 +307,17 @@ class TimeTaggers():
         dataSync = {}
         dataSync['alice'] = rawData[0]['alice'][0:nSyncs]
         dataSync['bob'] = rawData[0]['bob'][0:nSyncs]
-        config, pkIdx = self.find_sync_offset2(.2, rawData = dataSync)
+        config, pkIdx = self.find_sync_offset2(.2, rawData=dataSync)
         # configArray.append(config)
 
         countsAll = []
         paramsAll = []
-        chStatsAll = np.zeros((4,4))
+        chStatsAll = np.zeros((4, 4))
         for i, data in enumerate(rawData):
-            reducedData = analyze_data(data, config)
+            reducedData = pdbell.analyze_data(data, config)
             fname = 'test.dat'
             cl.write_to_compressed_file(fname, reducedData)
-            counts = process_counts(reducedData)
+            counts = pdbell.process_counts(reducedData)
             chStatsAll += counts
 
         chStatsAll = chStatsAll.astype('int')
@@ -329,14 +331,15 @@ class TimeTaggers():
         self.abDelay = self.config['analysis']['abDelay']
         self.syncTTagDiff = self.config['analysis']['syncTTagDiff']
         usePockelsMask = self.config['pockelProp']['enable']
-        
+
         paramsCh = self.get_ch_settings()
         divider = paramsCh['divider']*1.
         findPk = paramsCh['findPk']
         isTrim = True
         # print(rawData)
 
-        trimmedData, err = cl.trim_data(rawData, self.ttagOffset, self.abDelay, self.syncTTagDiff, paramsCh, dt=dt)
+        trimmedData, err = cl.trim_data(
+            rawData, self.ttagOffset, self.abDelay, self.syncTTagDiff, paramsCh, dt=dt)
         isTrim = not err
 
         paramsSingle = copy.deepcopy(paramsCh)
@@ -353,29 +356,32 @@ class TimeTaggers():
                 paramsSingle['bob']['channels']['detector'] = detChB
 
                 try:
-                    results = cl.calc_data_properties(trimmedData, paramsSingle, divider, findPk=findPk)
-                except:
+                    results = cl.calc_data_properties(
+                        trimmedData, paramsSingle, divider, findPk=findPk)
+                except Exception:
                     print('failed data properties')
                     results = {}
                     results['alice'] = None
                     results['bob'] = None
 
-
-                
                 detectionMask = self.get_window_mask(trimmedData, results)
 
                 detectionDarkMask = self.get_darks_mask(trimmedData, results)
 
-                pockelsMask, paramsPockels = self.get_pockels_mask(trimmedData, results)
+                pockelsMask, paramsPockels = self.get_pockels_mask(
+                    trimmedData, results)
 
                 detMask = [detectionMask]
-                coincAndSingles = self.compute_coinc(trimmedData, results, detMask)
+                coincAndSingles = self.compute_coinc(
+                    trimmedData, results, detMask)
 
                 maskPC = [detectionMask, pockelsMask]
-                coincAndSinglesPC = self.compute_coinc(trimmedData, results, maskPC)
+                coincAndSinglesPC = self.compute_coinc(
+                    trimmedData, results, maskPC)
 
                 maskDark = [detectionDarkMask]
-                coincAndSinglesDark = self.compute_coinc(trimmedData, results, maskDark)
+                coincAndSinglesDark = self.compute_coinc(
+                    trimmedData, results, maskDark)
 
                 chStats, reducedData = self.compute_stats(trimmedData, results)
                 # if isTrim:
@@ -417,20 +423,21 @@ class TimeTaggers():
         for party in data.keys():
             # cl.get_processed_data(data[party], props[party], offset[party], pcStart, pcLength)
 
-            pcMask, p = cl.get_pockels_mask(data[party], props[party], 
-                        offset[party], pcStart, pcLength)
-            pockelsMask[party] = pcMask 
-            params[party] = p 
+            pcMask, p = cl.get_pockels_mask(data[party], props[party],
+                                            offset[party], pcStart, pcLength)
+            pockelsMask[party] = pcMask
+            params[party] = p
 
         return pockelsMask, params
 
     def get_window_mask(self, data, props):
         mask = {}
         for party in data:
-            m = cl.get_window_mask(data[party],props[party])
+            m = cl.get_window_mask(data[party], props[party])
             mask[party] = m
-            
+
         return mask
+
     def get_darks_mask(self, data, props):
         # mask = {}
         # for party in data:
@@ -448,18 +455,19 @@ class TimeTaggers():
 
     def get_settings_mask(self, data, props):
         mask = {}
-        totalSettings =[]
-        sett = [1,2]
+        totalSettings = []
+        sett = [1, 2]
         settings = []
 
         party = ['alice', 'bob']
-        nSyncs = min(len(props[party[0]]['settingsSync']),len(props[party[1]]['settingsSync']))
+        nSyncs = min(len(props[party[0]]['settingsSync']),
+                     len(props[party[1]]['settingsSync']))
         settingSync = []
         for s1 in sett:
             for s2 in sett:
-                sA = (props[party[0]]['settingsSync']==s1)
-                sB = (props[party[1]]['settingsSync']==s2)
-                sAsB = ( sA[0:nSyncs] & sB[0:nSyncs] )
+                sA = (props[party[0]]['settingsSync'] == s1)
+                sB = (props[party[1]]['settingsSync'] == s2)
+                sAsB = (sA[0:nSyncs] & sB[0:nSyncs])
                 settingSync.append(sAsB)
                 totalSettings.append(np.sum(sAsB))
 
@@ -474,7 +482,7 @@ class TimeTaggers():
     def compute_stats(self, data, props):
         for party in data:
             if data[party] is None:
-                return np.zeros((4,4))
+                return np.zeros((4, 4))
 
         detectionMask = self.get_window_mask(data, props)
 
@@ -483,7 +491,8 @@ class TimeTaggers():
         settings, totalSettings = self.get_settings_mask(data, props)
 
         masksForReduced = [detectionMask, pockelsMask]
-        reducedData, laserPeriod = self.get_reduced_data(data, props, masksForReduced)
+        reducedData, laserPeriod = self.get_reduced_data(
+            data, props, masksForReduced)
         pcLength = int(self.config['pockelProp']['length'])+1
         nPulses = 2*pcLength
 
@@ -500,11 +509,13 @@ class TimeTaggers():
             mask = [detectionMask, pockelsMask, settingsMask]
             counts = self.compute_coinc(data, props, mask, nPulses=nPulses)
             trials = totalSettings[i]
-            nullOutcomes = trials - (counts['sAlice']+counts['sBob']+counts['coinc'])
-            res += [nullOutcomes, counts['sAlice'], counts['sBob'], counts['coinc']]
+            nullOutcomes = trials - \
+                (counts['sAlice']+counts['sBob']+counts['coinc'])
+            res += [nullOutcomes, counts['sAlice'],
+                    counts['sBob'], counts['coinc']]
 
         res = np.array(res).reshape((4, 4))
-        return res, reducedData 
+        return res, reducedData
 
     def compute_coinc(self, data, props, masks, nPulses=None):
         countsDataDict, laserPeriod = self.get_reduced_data(data, props, masks)
@@ -517,16 +528,17 @@ class TimeTaggers():
         else:
             radius = nPulses*(period-2)/2
 
-        singlesA, singlesB, coinc = cl.find_coincidences(chData[0], chData[1], radius)
+        singlesA, singlesB, coinc = cl.find_coincidences(
+            chData[0], chData[1], radius)
         counts = {'sAlice': singlesA,
-                    'sBob': singlesB,
-                    'coinc': coinc}
+                  'sBob': singlesB,
+                  'coinc': coinc}
         return counts
 
     def get_reduced_data(self, data, props, masks):
-        countsData ={}
+        countsData = {}
         laserPeriod = []
-        
+
         for party in data:
             totalMask = np.array([True]*len(data[party]))
             for m in masks:
@@ -536,8 +548,6 @@ class TimeTaggers():
 
         return countsData, laserPeriod
 
-        
-        
 
 #######################
 
@@ -566,7 +576,7 @@ class TimeTaggers():
 #     abDelay =config['analysis']['pulseABDelay']
 #     syncTTagDiff =config['analysis']['syncTTagDiff']
 #     usePockelsMask =config['pockelProp']['enable']
-    
+
 #     paramsCh = get_ch_settings(config)
 #     divider = paramsCh['divider']*1.
 #     findPk = paramsCh['findPk']
@@ -601,7 +611,7 @@ class TimeTaggers():
 #     pcLength = int(config['pockelProp']['length'])+1
 
 #     for party in rawData.keys():
-#         reduced = cl.get_processed_data(trimmedData[party], props[party], 
+#         reduced = cl.get_processed_data(trimmedData[party], props[party],
 #                                     offset[party], pcStart, pcLength)
 #         reducedData[party] = reduced
 #         cl.write_single_party_to_compressed_file(party+'_data', reduced)
@@ -622,11 +632,11 @@ class TimeTaggers():
 #     counts = []
 #     for s in sett:
 #         for j in sett:
-#             SAMask = SA==s 
+#             SAMask = SA==s
 #             SBMask = SB==j
 #             settingsMask = SAMask & SBMask
-#             OAMask = OA>0 
-#             OBMask = OB>0 
+#             OAMask = OA>0
+#             OBMask = OB>0
 #             # print(OA, OB)
 #             coinc = np.sum(settingsMask & OAMask & OBMask)
 #             singlesA = np.sum(settingsMask & OAMask)
@@ -638,12 +648,11 @@ class TimeTaggers():
 #     counts = np.array(counts).astype(int)
 #     # print(counts)
 #     return counts
-
-
 if __name__ == '__main__':
     path = '/Users/lks/Documents/BellData/2022'
     date = '2022_03_19'
-    fileA = ['2022_03_19_01_34_alice__excellent_settings_320_divider__file_1_of_21.dat']
+    fileA = [
+        '2022_03_19_01_34_alice__excellent_settings_320_divider__file_1_of_21.dat']
     # fileA = ['2022_03_11_19_37_alice__1min_chunk_violation.dat',
     #         '2022_03_11_19_38_alice__1min_chunk_violation_2.dat']
 
@@ -653,20 +662,20 @@ if __name__ == '__main__':
 
     # fileA = ['2022_03_11_23_12_alice__80_percent_check_60s_.dat']
     # fileB = ['2022_03_11_23_12_bob__80_percent_check_60s_.dat']
-    # fAlice = path+'/Alice/'+date+'/'+fileA 
+    # fAlice = path+'/Alice/'+date+'/'+fileA
     # fBob = path+'/Bob/'+date+'/'+fileB
 
-    files ={}
+    files = {}
     files['alice'] = []
     files['bob'] = []
     for i in range(len(fileA)):
-        fAlice = path+'/Alice/'+date+'/'+fileA[i] 
+        fAlice = path+'/Alice/'+date+'/'+fileA[i]
         fBob = path+'/Bob/'+date+'/'+fileB[i]
         files['alice'].append(fAlice)
         files['bob'].append(fBob)
 
     configFile = '../config/client.yaml'
-    config = load_config_data(configFile)
+    config = pdbell.load_config_data(configFile)
 
     tt = TimeTaggers(config, offline=True)
     # chStatsAll, countsAll, paramsAll = tt.process_files(files, config)
@@ -676,7 +685,6 @@ if __name__ == '__main__':
 
     CH, CHn, ratio, pValue = cl.calc_violation(chStatsAll)
 
-
     # print('connecting')
     # tt = TimeTaggers()
     # stats = tt.get_stats()
@@ -684,5 +692,3 @@ if __name__ == '__main__':
 
     # counts, params = tt.update()
     # print(counts)
-
-
