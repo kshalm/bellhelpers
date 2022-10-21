@@ -182,6 +182,13 @@ def load_config_data(fname):
         config_fp.close()
         return config
 
+def convert_str_to_bytes(strData):
+    data = base64.b64decode(strData)
+    return data
+
+def convert_bytes_to_str(binData):
+    strData = base64.b64encode(binData).decode('utf-8')
+    return strData
 '''
 Loop through a directory and return a list of files for Alice and Bob for each
 data run.
@@ -264,7 +271,7 @@ def main():
             print(fArray[indx])
         except Exception:
             pass
-    chStatsAll, counts = process_single_run(filesSingle, aggregate=True)
+    chStatsAll, compressedData = process_single_run(filesSingle, aggregate=True)
     # chStatsAll = process_multiple_data_runs(files)
 
     # chStatsAll = np.array([[66074860,2384557,2309746,105999],
