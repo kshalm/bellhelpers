@@ -13,6 +13,7 @@ setup(name='bellhelper',
                         'zmqhelper @ git+https://github.com/kshalm/zmqhelpers.git#egg=zmqhelper'
                         'numpy',
                         'scipy',
-                        'redis'],
+                        'redis',
+                        'numba'],
       include_package_data=True,
       zip_safe=False)
