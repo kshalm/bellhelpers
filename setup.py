@@ -10,7 +10,7 @@ setup(name='bellhelper',
       packages=['bellhelper', 'bellhelper.data'],
       install_requires=['pyyaml',
                         'bellMotors @ git+https://github.com/kshalm/motorLib.git#egg=bellMotors',
-                        'zmqhelper @ git+https://github.com/kshalm/zmqhelpers.git#egg=zmqhelper'
+                        'zmqhelper @ git+https://github.com/kshalm/zmqhelpers.git#egg=zmqhelper',
                         'numpy',
                         'scipy',
                         'redis',

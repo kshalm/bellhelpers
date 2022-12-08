@@ -21,6 +21,7 @@ def connect_to_redis(redisConfig):
                     db=redisConfig['db'])
     return r
 
+
 def get_last_entry(r, channel, count=1):
     '''returns a list of entries'''
     msg = r.xrevrange(channel, count=count)
@@ -29,11 +30,13 @@ def get_last_entry(r, channel, count=1):
     msgDecode = [(ele[0].decode(), decode_dict(ele[1])) for ele in msg]
     return msgDecode
 
+
 def set_key_to_expire(r, channel, time):
     '''sets an expiration time for a channel.
     time must be an int number of seconds.
     Otherwise it is cast'''
     r.expire(channel, int(time))
+
 
 def stream_last_updated(r, channel):
     msg = get_last_entry(r, channel, count=1)
@@ -44,10 +47,11 @@ def stream_last_updated(r, channel):
     # print(lastStreamTimeString)
     lastStreamTime = int(lastStreamTimeString.split('-')[0])
     lastStreamTime = lastStreamTime*1./1000.
-    redisTime = r.time() #returns (seconds, microseconds)
+    redisTime = r.time()  # returns (seconds, microseconds)
     redisCurrentTime = redisTime[0]+redisTime[1]*1./1000000.
     timeSinceLastUpdate = redisCurrentTime-lastStreamTime
     return timeSinceLastUpdate, msg[0]
+
 
 def is_stream_alive(r, channel, timeOut):
     lastUpdate, lastItem = stream_last_updated(r, channel)
@@ -138,14 +142,16 @@ def set_key_value(d, key, val):
             d[k] = subD
     return d
 
-def loop_counts(r, channel, error_function, errorArgs, intTime=0.2, numTries=-1, sleepTime=0.05, timeOut=None):
+
+def loop_counts(r, channel, error_function, errorArgs, intTime=0.2,
+                numTries=-1, sleepTime=0.05, timeOut=None):
     if numTries == 0:
         numTries = 1
 
     msgCounts = get_last_entry(r, channel, count=2)
     if msgCounts is not None:
         # Need to grab the second to last timestamp to start with.
-        # We need the current and last 
+        # We need the current and last
         LASTTIMESTAMP = msgCounts[0][0]
         counts = msgCounts[1][1]
         defaultIntegrationTime = counts['integrationTime']
@@ -158,50 +164,53 @@ def loop_counts(r, channel, error_function, errorArgs, intTime=0.2, numTries=-1,
     defaultNumTries = numTries
     t1 = time.time()
 
-    j=0
-    while j<nSamples:
+    j = 0
+    while j < nSamples:
         cont = True
         numTries = defaultNumTries
         i = 0
         while cont:
-            i+=1
+            i += 1
             time.sleep(sleepTime)
             msgCounts = get_data(r, channel, LASTTIMESTAMP)
             # t2 = time.time()
             # print(i, j, 'Elapsed time:', t2-t1)
-            if (msgCounts is not None) and len(msgCounts)>=2:
+            if (msgCounts is not None) and len(msgCounts) >= 2:
                 # print(msgCounts)
                 # Need to make sure that an update has occured which requires
                 # at least two new entries since the first one.
-                goodCounts, LASTTIMESTAMP = parse_counts(msgCounts, error_function, errorArgs) 
+                goodCounts, LASTTIMESTAMP = parse_counts(
+                    msgCounts, error_function, errorArgs)
 
-                                        # inlcudeNullCounts, trim, error_function)
+                # inlcudeNullCounts, trim, error_function)
 
-                if len(goodCounts)==0:
+                if len(goodCounts) == 0:
                     continue
-                else: 
+                else:
                     samplesAvailable = len(goodCounts)
-                    samplesLeftToAdd = nSamples - j 
+                    samplesLeftToAdd = nSamples - j
 
-                    if samplesAvailable<=samplesLeftToAdd:
-                        countsToAdd = goodCounts 
+                    if samplesAvailable <= samplesLeftToAdd:
+                        countsToAdd = goodCounts
                     else:
                         countsToAdd = goodCounts[-samplesLeftToAdd:-1]
-                    j+=len(countsToAdd)
-                    countList+=countsToAdd
+                    j += len(countsToAdd)
+                    countList += countsToAdd
                     break  # end the loop
             else:
                 timeElapsed = time.time() - t1
                 numTriesExceeded = (i >= numTries) and (numTries > 0)
-               
+
                 if numTriesExceeded:
-                    err = stExcept.StreamFrozenException(channel, numTries=numTries, 
-                        timeElapsed=timeElapsed)
+                    err = stExcept.StreamFrozenException(channel, numTries=numTries,
+                                                         timeElapsed=timeElapsed)
                     raise err
 
-                timeOutExceeded = (timeOut is not None) and (timeElapsed>timeOut)
+                timeOutExceeded = (timeOut is not None) and (
+                    timeElapsed > timeOut)
                 if timeOutExceeded:
-                    err = stExcept.streamTimeoutException(channel, timeElapsed=timeElapsed)
+                    err = stExcept.streamTimeoutException(
+                        channel, timeElapsed=timeElapsed)
                     raise err
                 continue
 
@@ -212,7 +221,7 @@ def parse_counts(msgCounts, error_function, errorArgs):
     goodCounts = []
     lastTimeStamp = msgCounts[-2][0]
 
-    for j in range(1,len(msgCounts)):
+    for j in range(1, len(msgCounts)):
         oldCount = msgCounts[j-1][1]
         newCount = msgCounts[j][1]
 

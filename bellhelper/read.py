@@ -48,10 +48,10 @@ def get_counts(r, intTime=0.2, countPath='VV',
     '''
     r: Redis connection
     intTime: The amount of time to integrate for. This is rounded to the nearest integer multiple
-             of 0.2s in the default configuration. So asking for 1.5s of data will actually return 1.6s. 
+             of 0.2s in the default configuration. So asking for 1.5s of data will actually return 1.6s.
              It depends on what the redis integration time value is set to–if that changes from 0.2s to
              say 0.3s, then the time will be rounded to the nearest integer multiple of 0.3s.
-    countPath:  Which path to count from in case there are more than one detector per station. 
+    countPath:  Which path to count from in case there are more than one detector per station.
                 'VV' is the default and returns the standard singles/coinc counts in the coinc window.
                 'VV_PC' gives the counts in the specified Pockels cell windows
                 'VV_Background' give the counts outside the coincidence windows.
@@ -145,7 +145,7 @@ def get_stats(r, intTime=0.5, countPath=('alice', 'bob'),
     '''
     r: Redis connection
     intTime: The amount of time to integrate for. This is rounded to the nearest integer multiple
-             of 0.2s in the default configuration. So asking for 1.5s of data will actually return 1.6s. 
+             of 0.2s in the default configuration. So asking for 1.5s of data will actually return 1.6s.
              It depends on what the redis integration time value is set to–if that changes from 0.2s to
              say 0.3s, then the time will be rounded to the nearest integer multiple of 0.3s.
     countPath: The default for this are the parties in a tuple ('alice', 'bob')
@@ -194,8 +194,9 @@ def calc_efficiency(sA, sB, coinc):
         return eff
 
 
-def error_check_counts(previousCounts, currentCounts, countPath='VV',
-                       includeNullCounts=False, trim=True):
+def error_check_counts(previousCounts, currentCounts,
+                       countPath='VV', includeNullCounts=False,
+                       trim=True):
     '''
     Function to make sure that the counts satisfy several conditions. These include 
     the singles not being null (if that option is specified), and that the counts have
@@ -242,9 +243,9 @@ def error_check_counts(previousCounts, currentCounts, countPath='VV',
         # Make sure that the counts have updated
         if (currentSA == previousSA):
             countsValid = False
-            print(currentCounts, previousCounts)
-            repeatException = stExcept.TimeTaggerRepeatingException('alice')
-            raise repeatException
+            # print(currentCounts, previousCounts)
+            # repeatException = stExcept.TimeTaggerRepeatingException('alice')
+            # raise repeatException
         if (currentSB == previousSB):
             countsValid = False
             # repeatException = stExcept.TimeTaggerRepeatingException('bob')
