@@ -39,6 +39,11 @@ log.setLevel(logging.INFO)
 class PolControl():
     """Class to connect to various bridge and source motors
     and move them while logging their positions.
+    init args: 
+          r - redis database. provide object returned upon redis connection.
+          ip - ip of the motorserveer
+          port - port for the motorserver
+          name - optional name for the pol control object
     """
 
     def __init__(self, r=None, ip='127.0.0.1', port=55000,

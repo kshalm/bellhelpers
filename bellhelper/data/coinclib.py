@@ -1,15 +1,18 @@
 import numpy as np
 import zlib
 from numba import jit
+#import json
+#import time
 import json
 import time
 
 import scipy.signal
 from scipy.stats import binom
-from scipy.stats import mode
+#from scipy.stats import mode
 from copy import deepcopy
 
 TTAGERRESOLUTION = 78.125E-12
+
 
 # @jit(nopython=True, cache=True)
 def find_coincidences_cw(data, ch1, ch2, radius):
@@ -41,6 +44,7 @@ def find_coincidences_cw(data, ch1, ch2, radius):
     results = find_coincidences(ch1Data, ch2Data, radius)
 
     return results
+
 
 @jit(nopython=True, cache=True)
 def find_coincidences(ch1Data, ch2Data, radius):
@@ -80,91 +84,90 @@ def find_coincidences(ch1Data, ch2Data, radius):
         upper = ch1TTAG + radius
         lower = ch1TTAG - radius
         search = True
-        
+
         while search:
-            if ch2Indx>=singlesCh2:
+            if ch2Indx >= singlesCh2:
                 search = False
                 break
 
             ch2TTAG = ch2Data[ch2Indx]
-            if ch2TTAG<lower:
+            if ch2TTAG < lower:
                 ch2Indx += 1
-            if ch2TTAG>upper:
+            if ch2TTAG > upper:
                 search = False
-            if (ch2TTAG>=lower) & (ch2TTAG<=upper):
+            if (ch2TTAG >= lower) & (ch2TTAG <= upper):
                 search = False
-                coincidences +=1
+                coincidences += 1
                 ch2Indx += 1
-
 
     return [singlesCh1, singlesCh2, coincidences]
 
+
 def trim_data(data, ttagOffset, abDelay, syncTTagDiff, params, dt=None):
     err = False
-    trimmedData = {'alice':{}, 'bob':{}}
+    trimmedData = {'alice': {}, 'bob': {}}
 
-    validData = True 
+    validData = True
     for key in data:
         if data[key] is None:
-            validData = False 
+            validData = False
 
             # trimmedData = data
             # err = True
 
-    if validData==False:
+    if validData == False:
         for key in data:
             tdata = trim_data_single_party(data[key], dt=dt)
-            trimmedData[key] = tdata 
-        err = True 
+            trimmedData[key] = tdata
+        err = True
         return trimmedData, err
 
     aData = data['alice']['ttag']
-    bData = data['bob']['ttag'] + ttagOffset # event number for all bob tags, corrected for delay
+    # event number for all bob tags, corrected for delay
+    bData = data['bob']['ttag'] + ttagOffset
 
     startTTag = max(aData[0], bData[0])
     # print('startTTag', startTTag)
     abDelay = -1
     # print('abDelay', abDelay, 'START', startTTag, aData[0], bData[0],ttagOffset, '\n')
 
-    if syncTTagDiff > 0: # Bob's sync occurs before Alices
+    if syncTTagDiff > 0:  # Bob's sync occurs before Alices
         bobSyncCh = params['bob']['channels']['sync']
-        bobSyncs =  data['bob']['ch'] == bobSyncCh
+        bobSyncs = data['bob']['ch'] == bobSyncCh
         bobSyncTTags = bData[bobSyncs]
         bobSyncMask = bobSyncTTags >= startTTag
         firstSyncTTag = bobSyncTTags[bobSyncMask][0]
-    else: 
+    else:
         aliceSyncCh = params['alice']['channels']['sync']
-        aliceSyncs =  data['alice']['ch'] == aliceSyncCh
+        aliceSyncs = data['alice']['ch'] == aliceSyncCh
         aliceSyncTTags = aData[aliceSyncs]
         aliceSyncMask = aliceSyncTTags >= startTTag
         firstSyncTTag = aliceSyncTTags[aliceSyncMask][0]
-        
+
     stopTTag = min(aData[-1], bData[-1])
     if dt is not None:
         endTime = dt/TTAGERRESOLUTION + startTTag
     else:
-        endTime = stopTTag # large number
+        endTime = stopTTag  # large number
 
-    
-    if stopTTag<endTime:
-        err=True
+    if stopTTag < endTime:
+        err = True
         endTime = stopTTag
 
-    if startTTag>endTime:
-        err = True 
+    if startTTag > endTime:
+        err = True
         startTTag = 0
         endTime = max(aData[-1], bData[-1])
 
-    print('error', err)
-
-    aClicks = (aData>=firstSyncTTag) & (aData<=endTime)
-    bClicks = (bData>=firstSyncTTag) & (bData<=endTime)
+    aClicks = (aData >= firstSyncTTag) & (aData <= endTime)
+    bClicks = (bData >= firstSyncTTag) & (bData <= endTime)
 
 
     trimmedData['alice'] = data['alice'][aClicks]
     trimmedData['bob'] = data['bob'][bClicks]
     trimmedData['alice']['ttag'] = trimmedData['alice']['ttag']-(startTTag)
-    trimmedData['bob']['ttag'] = trimmedData['bob']['ttag']-(startTTag)+ttagOffset
+    trimmedData['bob']['ttag'] = trimmedData['bob']['ttag'] - \
+        (startTTag)+ttagOffset
 
     # Make sure each dataset has the same number of sync pulses / trials
     nSyncs = {}
@@ -175,9 +178,9 @@ def trim_data(data, ttagOffset, abDelay, syncTTagDiff, params, dt=None):
         nSyncs[party] = sBool.sum()
         syncBool[party] = sBool
 
-    if (nSyncs['alice']==nSyncs['bob']):
-        partyToTrim = None 
-    elif (nSyncs['alice']>nSyncs['bob']):
+    if (nSyncs['alice'] == nSyncs['bob']):
+        partyToTrim = None
+    elif (nSyncs['alice'] > nSyncs['bob']):
         partyToTrim = 'alice'
     else:
         partyToTrim = 'bob'
@@ -185,33 +188,36 @@ def trim_data(data, ttagOffset, abDelay, syncTTagDiff, params, dt=None):
     if partyToTrim is not None:
         syncTTAGS = trimmedData[partyToTrim]['ttag'][syncBool[partyToTrim]]
         lastSyncTTAG = syncTTAGS[-1]
-        mask = trimmedData[partyToTrim]['ttag']<lastSyncTTAG
+        mask = trimmedData[partyToTrim]['ttag'] < lastSyncTTAG[-1]
         trimmedData[partyToTrim] = trimmedData[partyToTrim][mask]
 
     return trimmedData, err
+
 
 def trim_data_single_party(data, dt=None):
     if dt is None:
         return data
 
     if data is None:
-        return data 
+        return data
 
     startTTag = data['ttag'][0]
     endTime = dt/TTAGERRESOLUTION + startTTag
     lastTTag = data['ttag'][-1]
-    if lastTTag<endTime:
+    if lastTTag < endTime:
         print('weird ending')
-        endTime = lastTTag 
-    validTTags = data['ttag']<=endTime
+        endTime = lastTTag
+    validTTags = data['ttag'] <= endTime
     return data[validTTags]
+
 
 def trim_data_single(data, params):
     syncCh = params['channels']['sync']
-    syncs =  data['ch'] == syncCh
+    syncs = data['ch'] == syncCh
     syncTTags = data['ttag'][syncs]
     # print(syncTTags, syncTTags[0], data['ttag'])
-    validTTags = (data['ttag']>=syncTTags[0]) & (data['ttag']<=syncTTags[-1])
+    validTTags = (data['ttag'] >= syncTTags[0]) & (
+        data['ttag'] <= syncTTags[-1])
     trimmedData = data[validTTags]
     return trimmedData
 
@@ -227,28 +233,32 @@ def get_sync_array(data, syncCh):
     syncCh: the channel number that records the synch signal.
     '''
 
-    syncBool = data['ch']==syncCh
+    syncBool = data['ch'] == syncCh
     syncs = data['ttag'][syncBool]
-    syncArray = syncBool.cumsum() -1
+    syncArray = syncBool.cumsum() - 1
     return syncArray, syncBool
 
 # @jit
+
+
 def calc_settings(data, settingChannels, syncArray):
     '''
     Return an array the length of the time tag
     '''
-    nSyncs = syncArray[-1] +1
+    nSyncs = syncArray[-1] + 1
     settingsSync = np.zeros(nSyncs)
     j = 1
     for ch in settingChannels:
-        setBool = data['ch']==ch
+        setBool = data['ch'] == ch
         settingsSync[syncArray[setBool]] += j
-        j+=1
+        j += 1
 
-    settings= settingsSync[syncArray]
+    settings = settingsSync[syncArray]
     return settings, settingsSync
 
 # @jit
+
+
 def calc_period(det, divider=800, syncCh=6, maxPeriod=170):
     '''
     Need to determine the period of the laser. Cand do this by looking
@@ -261,22 +271,19 @@ def calc_period(det, divider=800, syncCh=6, maxPeriod=170):
     larger than this are treated as an error, and their values are replaced
     with the previous valid value.
     '''
-    syncBool = det['ch']==syncCh
+    syncBool = det['ch'] == syncCh
     syncs = det['ttag'][syncBool]
     laserPeriodArray = np.diff(syncs)/divider
-    # print('det', det)
-    # print('syncBool', syncBool)
-    # print('syncs', syncs)
-    # print('divider', divider)
-    # print('laserPeriodArray', laserPeriodArray)
-    
+
     laserPeriodArray = np.append(laserPeriodArray, laserPeriodArray[-1])
     laserPeriod = np.mean(laserPeriodArray[laserPeriodArray < maxPeriod])
-    errorLP = np.where(laserPeriodArray> maxPeriod)
-    laserPeriodArray[errorLP] = laserPeriodArray[np.roll(errorLP, -1)] 
+    errorLP = np.where(laserPeriodArray > maxPeriod)
+    laserPeriodArray[errorLP] = laserPeriodArray[np.roll(errorLP, -1)]
     return(laserPeriod, laserPeriodArray)
 
 # @jit
+
+
 def check_for_timetagger_jump(rawData, params):
     jump = {'skip': False, 'party': [], 'position': []}
 
@@ -288,11 +295,12 @@ def check_for_timetagger_jump(rawData, params):
         avgDiff = np.mean(diffTTags)
         scale = 2
         pos = np.where(diffTTags > avgDiff * scale)
-        if (pos[0]>0):
+        if (pos[0] > 0):
             jump['skip'] = True
             jump['party'].append(key)
             jump['position'].append(pos[0])
     return(jump)
+
 
 def calc_phase_info(det, divider, ch):
 
@@ -301,42 +309,45 @@ def calc_phase_info(det, divider, ch):
     syncArray, syncBool = get_sync_array(det, ch['sync'])
     syncTTAGs = det['ttag'][syncBool]
     # Create an array the same length as the det record of timetags,
-    # but containing the sync timetag for that period. Useful for 
+    # but containing the sync timetag for that period. Useful for
     # computing timetags of events relative to the start of a sync pulse.
     syncAtEveryEvent = syncTTAGs[syncArray]
     ttagModSync = det['ttag'] - syncAtEveryEvent
 
-    phase = ttagModSync%laserPeriodArray[syncArray]
-    clickBool = det['ch']==ch['detector']
+    phase = ttagModSync % laserPeriodArray[syncArray]
+    clickBool = det['ch'] == ch['detector']
 
     laserPulse = np.floor(ttagModSync*1./laserPeriodArray[syncArray])
     # print('Phase', laserPeriod, laserPeriodArray)
     return(phase, laserPulse, ttagModSync, laserPeriod)
 
+
 def calc_phase_histogram(laserPeriod, phase, clickBool):
     bins = np.arange(0, np.floor(laserPeriod))
-    n,x = np.histogram(phase[clickBool], bins=bins)
-    phaseHist={'x': (x[:-1]+x[1:])/2., 'y': n}
+    n, x = np.histogram(phase[clickBool], bins=bins)
+    phaseHist = {'x': (x[:-1]+x[1:])/2., 'y': n}
     pkIdx = np.argmax(phaseHist['y'])
     return phaseHist, pkIdx
+
 
 def calc_coinc_window_mask(det, params, divider, pkIdx='auto', ):
     divider = divider*1.
     ch = params['channels']
     radius = params['radius']
-    clickBool = det['ch']==ch['detector']
+    clickBool = det['ch'] == ch['detector']
 
-    phase, laserPulse, ttagModSync, laserPeriod = calc_phase_info(det, divider, ch)
+    phase, laserPulse, ttagModSync, laserPeriod = calc_phase_info(
+        det, divider, ch)
     phaseHist, pk = calc_phase_histogram(laserPeriod, phase, clickBool)
     # print(phaseHist)
 
-    if (pkIdx==True) or (pkIdx is None):
+    if (pkIdx is True) or (pkIdx is None):
         pkIdx = pk
 
     pkIdx = int(pkIdx)
     lowPhase = pkIdx - radius
     highPhase = pkIdx + radius
-    inWindowMask = (phase>lowPhase) & (phase<highPhase)
+    inWindowMask = (phase > lowPhase) & (phase < highPhase)
 
     phaseHist['lowPhase'] = lowPhase
     phaseHist['highPhase'] = highPhase
@@ -356,17 +367,21 @@ def calc_coinc_window_mask(det, params, divider, pkIdx='auto', ):
 #     return inPCWindowMask, outPCWindowMask
 
 # @jit
+
+
 def calc_data_properties(data, params, divider, findPk=False):
-    props={}
+    props = {}
     for party in data:
-        det= data[party]
+        det = data[party]
         p = params[party]
         # print('properties', p, det)
-        props[party] = calc_data_properties_one_party(det, p, divider, 
-                                            findPk=findPk, party=party)
+        props[party] = calc_data_properties_one_party(det, p, divider,
+                                                      findPk=findPk, party=party)
     return props
-    
-def calc_data_properties_one_party(data, params, divider, findPk=False, party=''):
+
+
+def calc_data_properties_one_party(data, params, divider,
+                                   findPk=False, party=''):
 
     props = {}
     ch = params['channels']
@@ -375,39 +390,41 @@ def calc_data_properties_one_party(data, params, divider, findPk=False, party=''
     syncArray, syncBool = get_sync_array(det, ch['sync'])
     nSyncs = syncBool.sum()
 
-    clickBool = det['ch']==ch['detector']
+    clickBool = det['ch'] == ch['detector']
 
-    
     #  Settings calculations
     try:
         settingChannels = [ch['setting0'], ch['setting1']]
-        settings, settingsSync = calc_settings(data, settingChannels, syncArray)
+        settings, settingsSync = calc_settings(
+            data, settingChannels, syncArray)
         props['settings'] = settings
         props['settingsSync'] = settingsSync
-    except:
+    except Exception:
         props['settings'] = None
         props['settingsSync'] = None
 
-    # Compute the phase histogram and coincidence widow mask. 
+    # Compute the phase histogram and coincidence widow mask.
     # Also return the laserPulse information
     if findPk:
-        pkIdx = True 
+        pkIdx = True
     else:
         pkIdx = params['pkIdx']
-    inWindowMask, laserPulse, phaseHist = calc_coinc_window_mask(det, params, divider, pkIdx=pkIdx)
+    inWindowMask, laserPulse, phaseHist = calc_coinc_window_mask(
+        det, params, divider, pkIdx=pkIdx)
     phaseHist['name'] = party
 
     # Compute the FWHM
     try:
         fwhm = find_fwhm(phaseHist['x'], phaseHist['y'])
-    except:
+    except Exception:
         fwhm = 0.
 
-    laserPulseHist = laser_pulse_histogram(laserPulse, inWindowMask, clickBool, divider)
+    laserPulseHist = laser_pulse_histogram(
+        laserPulse, inWindowMask, clickBool, divider)
 
     props['divider'] = divider
     props['syncArray'] = syncArray
-    props['syncBool'] = syncBool 
+    props['syncBool'] = syncBool
     props['clickBool'] = clickBool
     props['nSyncs'] = nSyncs
     props['inWindowMask'] = inWindowMask
@@ -426,19 +443,20 @@ def calc_data_properties_one_party(data, params, divider, findPk=False, party=''
 
     return(props)
 
+
 def get_processed_data(data, props, offset, pcStart, pcLength):
     settings = props['settingsSync'].astype(int)
     syncArray = props['syncArray']
     syncBool = props['syncBool']
 
     phaseMask = get_window_mask(data, props)
-    pockelsMask, paramsPockels = get_pockels_mask(data,props,
-                                    offset,pcStart,pcLength)
+    pockelsMask, paramsPockels = get_pockels_mask(data, props,
+                                                  offset, pcStart, pcLength)
     laserPulse = deepcopy(props['laserPulse'])
     # print('laser pulse', laserPulse)
-    laserPulse = laserPulse - offset - pcStart# index first lp to 0
+    laserPulse = laserPulse - offset - pcStart  # index first lp to 0
     # print('laser pulse', laserPulse)
-    validMask = phaseMask & pockelsMask 
+    validMask = phaseMask & pockelsMask
     # print('\n valid detections', np.sum(validMask), np.sum(phaseMask), np.sum(pockelsMask), '\n')
 
     # Remove detections not in the valid window
@@ -450,17 +468,19 @@ def get_processed_data(data, props, offset, pcStart, pcLength):
     laserPulseCumSum = np.cumsum(laserPulseVal)
     laserPulseSyncVals = laserPulseCumSum[syncBool]
     detectionVals = np.diff(laserPulseSyncVals)
-    detectionVals[detectionVals>0] +=1 #Need to correctly shift the encoded values back by one
+    # Need to correctly shift the encoded values back by one
+    detectionVals[detectionVals > 0] += 1
     detectionVals = detectionVals.astype(int)
 
     params = props['params']
     syncCh = params['channels']['sync']
-    syncs =  data['ch'] == syncCh
+    syncs = data['ch'] == syncCh
     syncTTags = (data['ttag'][syncs]).astype(int)
     # print('\n finding lengths')
     # print(len(settings), len(syncTTags), len(detectionVals))
 
-    results = {'Setting':  np.asarray([]).astype(int), 'Outcome':  np.asarray([]).astype(int), 'SyncTTag': np.asarray([]).astype(int)}
+    results = {'Setting':  np.asarray([]).astype(int), 'Outcome':  np.asarray(
+        []).astype(int), 'SyncTTag': np.asarray([]).astype(int)}
 
     nSyncs = min(len(settings), len(syncTTags), len(detectionVals))
     results['Setting'] = settings[0:nSyncs]
@@ -471,6 +491,7 @@ def get_processed_data(data, props, offset, pcStart, pcLength):
     # print('\n')
 
     return results
+
 
 def trim_processed_data(data, ttagOffset, syncTTagDiff):
     for party in data.keys():
@@ -484,7 +505,7 @@ def trim_processed_data(data, ttagOffset, syncTTagDiff):
     startTTag = np.max(minTTag)
     stopTTag = np.min(maxTTag)
 
-    if syncTTagDiff > 0: # Bob's sync occurs before Alices
+    if syncTTagDiff > 0:  # Bob's sync occurs before Alices
         party = 'bob'
     else:
         party = 'alice'
@@ -493,11 +514,13 @@ def trim_processed_data(data, ttagOffset, syncTTagDiff):
     firstSyncTTag = data[party]['SyncTTag'][syncMask][0]
 
     for key in data.keys():
-        validRangeMask = (data[key]['SyncTTag']>=firstSyncTTag) & (data[key]['SyncTTag']<=stopTTag)
+        validRangeMask = (data[key]['SyncTTag'] >= firstSyncTTag) & (
+            data[key]['SyncTTag'] <= stopTTag)
         for option in data[key].keys():
             data[key][option] = data[key][option][validRangeMask]
         del data[key]['SyncTTag']
     return data
+
 
 def compress_binary_data(data, aggregate=False):
     # f = open(fname, 'a+')
@@ -506,21 +529,21 @@ def compress_binary_data(data, aggregate=False):
     'u1' = 1-byte unsinged integer
     'u8' = 8-byte unsigned integers
     '''
-    sA = data['alice']['Setting'].astype('u1') # Alice Settings
-    sB = data['bob']['Setting'].astype('u1') # Bob settings
-    eA = data['alice']['Outcome'].astype('u8') # Alice outcome
-    eB = data['bob']['Outcome'].astype('u8') # Bob outcome
+    sA = data['alice']['Setting'].astype('u1')  # Alice Settings
+    sB = data['bob']['Setting'].astype('u1')  # Bob settings
+    eA = data['alice']['Outcome'].astype('u8')  # Alice outcome
+    eB = data['bob']['Outcome'].astype('u8')  # Bob outcome
     if aggregate:
         print('Requesto to aggregate')
-        dataType = [('sA','u1'),('sB','u1'),('eA','u1'), ('eB','u1')]
-        eA = (eA>0).astype('u1')
-        eB = (eB>0).astype('u1')
+        dataType = [('sA', 'u1'), ('sB', 'u1'), ('eA', 'u1'), ('eB', 'u1')]
+        eA = (eA > 0).astype('u1')
+        eB = (eB > 0).astype('u1')
         print(np.max(eA), np.max(eB))
     else:
-        dataType = [('sA','u1'),('sB','u1'),('eA','u8'), ('eB','u8')]
+        dataType = [('sA', 'u1'), ('sB', 'u1'), ('eA', 'u8'), ('eB', 'u8')]
 
     # Create a structured array. Each row represents the results from one trial.
-    data = np.zeros(len(sA), dtype = dataType)
+    data = np.zeros(len(sA), dtype=dataType)
 
     data['sA'] = sA
     data['sB'] = sB
@@ -533,6 +556,7 @@ def compress_binary_data(data, aggregate=False):
 
     return compressedData
 
+
 def write_to_compressed_file(fname, data, aggregate=False):
     compressedData = compress_binary_data(data, aggregate=aggregate)
 
@@ -541,25 +565,26 @@ def write_to_compressed_file(fname, data, aggregate=False):
 
     return compressedData
 
+
 def write_single_party_to_compressed_file(fname, data, save='bin'):
     '''
     data types:
     'u1' = 1-byte unsinged integer
     'u8' = 8-byte unsigned integers
     '''
-    setting = data['Setting'].astype('u1') 
-    event = data['Outcome'].astype('u8') 
-    ttag = data['SyncTTag'].astype('u8') 
-    dataType = [('Setting','u1'),('Outcome','u1'),('SyncTTag','u8')]
+    setting = data['Setting'].astype('u1')
+    event = data['Outcome'].astype('u8')
+    ttag = data['SyncTTag'].astype('u8')
+    dataType = [('Setting', 'u1'), ('Outcome', 'u1'), ('SyncTTag', 'u8')]
 
     # Create a structured array. Each row represents the results from one trial.
-    data = np.zeros(len(setting), dtype = dataType)
+    data = np.zeros(len(setting), dtype=dataType)
 
     data['Setting'] = setting
     data['Outcome'] = event
     data['SyncTTag'] = ttag
 
-    if save=='bin':
+    if save == 'bin':
         f = open(fname, 'a+')
         data.tofile(f)
         f.close()
@@ -568,7 +593,9 @@ def write_single_party_to_compressed_file(fname, data, save='bin'):
     return(fname)
 
 ########
-def get_pockels_mask(data,props,offset,pcStart,pcLength):
+
+
+def get_pockels_mask(data, props, offset, pcStart, pcLength):
     pcStop = pcStart + pcLength
 
     if data is None:
@@ -578,8 +605,8 @@ def get_pockels_mask(data,props,offset,pcStart,pcLength):
         laserPulse = props['laserPulse']
         startLP = pcStart+offset
         stopLP = pcStop+offset
-        pcMask = (laserPulse>startLP) & (laserPulse<stopLP)
-        params = {'xbar1':startLP,'xbar2':stopLP}
+        pcMask = (laserPulse > startLP) & (laserPulse < stopLP)
+        params = {'xbar1': startLP, 'xbar2': stopLP}
         pockelsMask = pcMask
 
     return pockelsMask, params
@@ -595,29 +622,34 @@ def get_window_mask(data, props):
         # print('\n Phase Mask', np.sum(coincWindowMask), np.sum(detMask), np.sum(mask), '\n')
     return mask
 
+
 def get_darks_mask(data, props):
     if data is None:
         mask = np.array([True]*len(data))
     else:
         darkWindowMask = np.logical_not(props['inWindowMask'])
         detMask = props['clickBool']
-        mask = detMask &  darkWindowMask
+        mask = detMask & darkWindowMask
     return mask
 
 #########
 
 # @jit
+
+
 def find_fwhm(X, Y):
     '''
     Compute the full-width-half-max of the detection events
     '''
     frac = 0.5
-    d = Y - (max(Y)* frac)
+    d = Y - (max(Y) * frac)
     indexes = np.where(d > 0)[0]
     fwhm = np.abs(X[indexes[-1]] - X[indexes[0]]) + 1
     return(fwhm)
 
 # @jit
+
+
 def remove_duplicate_ttags(rawData):
     '''
     Find and remove any timetags that are duplicates.
@@ -633,6 +665,8 @@ def remove_duplicate_ttags(rawData):
     return(rawData)
 
 # @jit
+
+
 def get_reduced_data(rawData, params):
     '''
     Make sure that the first timetag in Alice and Bob's data
@@ -642,20 +676,23 @@ def get_reduced_data(rawData, params):
     reducedData = {}
     for key in rawData:
         det = rawData[key]
-        syncBool = det['ch']== params[key]['channels']['sync']
+        syncBool = det['ch'] == params[key]['channels']['sync']
         syncIdx = np.where(syncBool)[0]
 
         first = syncIdx[0]
-        last = syncIdx[-1] +1  #  Include the last one...
-        
+        last = syncIdx[-1] + 1  # Include the last one...
+
         det = det[first:last]
         reducedData[key] = det
     return(reducedData)
 
+
 def laser_pulse_histogram(laserPulse, inWindowMask, clickBool, divider):
-    n,x = np.histogram(laserPulse[inWindowMask&clickBool], np.arange((divider+1)))
-    laserPulseHist = {'x': x[:-1], 'y': n, 'name':''}
+    n, x = np.histogram(
+        laserPulse[inWindowMask & clickBool], np.arange((divider+1)))
+    laserPulseHist = {'x': x[:-1], 'y': n, 'name': ''}
     return laserPulseHist
+
 
 def calc_offset_histograms(props):
     clickBool = props['clickBool']
@@ -664,21 +701,23 @@ def calc_offset_histograms(props):
     divider = props['divider']
     laserPulse = props['laserPulse']
     syncArray = props['syncArray']
-    
-    syncLaserPulse = np.diff(((clickBool&inWindowMask).cumsum())[syncBool])
+
+    syncLaserPulse = np.diff(((clickBool & inWindowMask).cumsum())[syncBool])
     # effectively sub-trial number. Formerly labeled laserPulse2
-    subTrial = laserPulse + (divider)*(syncArray)  
-    subTrial = subTrial*(inWindowMask&clickBool).astype(int)
+    subTrial = laserPulse + (divider)*(syncArray)
+    subTrial = subTrial*(inWindowMask & clickBool).astype(int)
 
     return syncLaserPulse, subTrial
+
 
 def calc_convolution(y1, y2):
     y1 = y1 - np.average(y1)
     y2 = y2 - np.average(y2)
     convolution = scipy.signal.fftconvolve(y1, y2[::-1])
-    convDelay = np.argmax(convolution) - (len(y2) -1)
+    convDelay = np.argmax(convolution) - (len(y2) - 1)
     convMax = np.max(convolution)
-    return convolution, convDelay, convMax 
+    return convolution, convDelay, convMax
+
 
 def find_offset_coinc(props, abdelay, corr):
     if abdelay < 0:
@@ -688,18 +727,19 @@ def find_offset_coinc(props, abdelay, corr):
         dA = props['alice']['laserPulse2'] - corr
         dB = props['bob']['laserPulse2']
 
-    startSync = max( min(dA), min(dB))
-    stopSync = min (max(dA), max(dB))
+    startSync = max(min(dA), min(dB))
+    stopSync = min(max(dA), max(dB))
     # print("syncs", startSync, stopSync)
 
-    dABool = (dA>=startSync) & (dA<=stopSync+1)
-    dBBool = (dB>=startSync) & (dB<=stopSync+1)
+    dABool = (dA >= startSync) & (dA <= stopSync+1)
+    dBBool = (dB >= startSync) & (dB <= stopSync+1)
 
     dA = dA[dABool]
     dB = dB[dBBool]
 
     coinc = np.intersect1d(dA, dB).astype(int)
     return(coinc)
+
 
 def calc_offset(data, params, divider):
     DIVIDER = divider
@@ -721,7 +761,8 @@ def calc_offset(data, params, divider):
     # print('Starting first convolution')
     syncLaserPulseA = props['alice']['syncLaserPulse']
     syncLaserPulseB = props['bob']['syncLaserPulse']
-    convSyncLaserPulse, abdelay, cMax = calc_convolution(syncLaserPulseA, syncLaserPulseB)
+    convSyncLaserPulse, abdelay, cMax = calc_convolution(
+        syncLaserPulseA, syncLaserPulseB)
     # print('abdelay', abdelay)
 
     # # Now find out the offset in laser pulse number between Alice and Bob
@@ -758,23 +799,24 @@ def calc_offset(data, params, divider):
     print('')
 
     # Now compute the average timetag offset between coincidence pairs
-    if len(coinc)>0:
+    if len(coinc) > 0:
         if abdelay < 0:
-            aIndx = np.in1d( props['alice']['laserPulse2'].astype(int), coinc)
-            bIndx = np.in1d( props['bob']['laserPulse2'].astype(int), coinc - corr)
+            aIndx = np.in1d(props['alice']['laserPulse2'].astype(int), coinc)
+            bIndx = np.in1d(
+                props['bob']['laserPulse2'].astype(int), coinc - corr)
         else:
-            aIndx = np.in1d( props['alice']['laserPulse2'].astype(int), coinc + corr)
-            bIndx = np.in1d( props['bob']['laserPulse2'].astype(int), coinc )
+            aIndx = np.in1d(
+                props['alice']['laserPulse2'].astype(int), coinc + corr)
+            bIndx = np.in1d(props['bob']['laserPulse2'].astype(int), coinc)
         aTTag = data['alice']['ttag'][aIndx]
         bTTag = data['bob']['ttag'][bIndx]
 
-        diffTTag =1.*( aTTag*1. - 1.*bTTag)
+        diffTTag = 1.*(aTTag*1. - 1.*bTTag)
         ttagOffset = np.mean(diffTTag*1.)
         # print( coinc, ttagOffset, ttagOffset - min(diffTTag), ttagOffset - (max(diffTTag)) )
     else:
         print("no Coincidences found during Offset search")
         ttagOffset = 0
-
 
     # print('offset results:',abdelay, offsetLaserPulse, ttagOffset)
     # print('Starting to find the sync order')
@@ -785,7 +827,7 @@ def calc_offset(data, params, divider):
     syncTTagsA = data['alice']['ttag'][syncBoolA]
     syncTTagsB = data['bob']['ttag'][syncBoolB] + ttagOffset
     # print(abdelay)
-    if abdelay>0:
+    if abdelay > 0:
         firstAliceSync = syncTTagsA[abdelay]
         firstBobSync = syncTTagsB[0]
     else:
@@ -804,16 +846,17 @@ def calc_offset(data, params, divider):
 
     return ret
 
+
 def calc_violation(stats):
     #  J = P(++|ab)        - P(+0|a'b)           - P(0+|ab')         - P(++|a'b')
 
-    pab11 = stats[3,3]
-    papb11 = stats[1,3]
-    pabp11 = stats[2,3]
-    papbp11 = stats[0,3]
-    papb10 = stats[2,1]-pabp11
-    pabp01 = stats[1,2]-papb11
-    chSingles = (stats[1,2]+stats[3,2]+stats[2,1]+stats[3,1])*1./2.
+    pab11 = stats[3, 3]
+    papb11 = stats[1, 3]
+    pabp11 = stats[2, 3]
+    papbp11 = stats[0, 3]
+    papb10 = stats[2, 1]-pabp11
+    pabp01 = stats[1, 2]-papb11
+    chSingles = (stats[1, 2]+stats[3, 2]+stats[2, 1]+stats[3, 1])*1./2.
 
     chCoinc = pab11+papb11+pabp11-papbp11
     # Jparts = [stats['coin'][1,1], -stats['alice'][2,1]+stats['coin'][2,1], -stats['bob'][1,2]+stats['coin'][1,2], -stats['coin'][2,2]]
@@ -840,6 +883,7 @@ def calc_violation(stats):
 
     print("Ratio:", ratio, "pValue:", pValue)
     return(CH, CHn, ratio, pValue)
+
 
 def calc_pvalue(N, prob):
     return(binom.cdf(N*(1-prob), N, 0.5))

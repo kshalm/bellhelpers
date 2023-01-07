@@ -1,26 +1,27 @@
 import timetaggers as tt 
 import numpy as np
-import coinclib as cl
 import copy
-import zlib
+# import zlib
 import yaml
 import os
+import base64
 try:
     import bellhelper.data.coinclib as cl
-    import bellhelper.data.timetaggers as tt 
+    import bellhelper.data.timetaggers as tt
 except Exception:
     import coinclib as cl
     import timetaggers as tt
 
 
 def process_single_run(files, aggregate=True, findSync=False):
-    ttagDataStructure = np.dtype([('ch','u1'),('ttag','u8'),('xfer','u2')])
+    ttagDataStructure = np.dtype(
+        [('ch', 'u1'), ('ttag', 'u8'), ('xfer', 'u2')])
     parties = {'alice', 'bob'}
     rawData = {}
     for p in parties:
-        rawData[p] = np.fromfile(files[p],dtype=ttagDataStructure)
+        rawData[p] = np.fromfile(files[p], dtype=ttagDataStructure)
         rawData[p]['ch'] -= 1
-    
+
     config = load_config_data(files['config'])
     timeTaggers = tt.TimeTaggers(config, offline=True)
     timeTaggers.configFile = files['config']
@@ -28,22 +29,21 @@ def process_single_run(files, aggregate=True, findSync=False):
     if findSync:
         rawData, timeTaggers = find_ttag_offset(timeTaggers, rawData)
 
-    #@TODO check for timetagger jumps
-    jumps = cl.check_for_timetagger_jump(rawData, config)
-    print('')
-    print('jumps',jumps)
-    print('')
+    # @TODO check for timetagger jumps
 
     reducedData = analyze_data(rawData, timeTaggers.config)
 
     if 'output' in files:
-        compressedData = cl.write_to_compressed_file(files['output'], reducedData, aggregate=aggregate)
+        compressedData = cl.write_to_compressed_file(
+            files['output'], reducedData, aggregate=aggregate)
     else:
-        compressedData = cl.compress_binary_data(reducedData, aggregate=aggregate)
+        compressedData = cl.compress_binary_data(
+            reducedData, aggregate=aggregate)
 
     counts = process_counts(reducedData)
     counts = counts.astype('int')
     return counts, compressedData
+
 
 def find_ttag_offset(timeTaggers, rawData):
     nSyncs = 1000000
@@ -72,17 +72,17 @@ def process_multiple_data_runs(files, aggregate=True, findSync=False):
     fAlice = files['alice']
     fBob = files['bob']
     fOut = files['output']
-    if len(fAlice)!= len(fBob):
+    if len(fAlice) != len(fBob):
         print('Alice and Bob need the same number of files')
         return None
-    else: 
+    else:
         nFiles = len(fAlice)
     rawData = []
     configArray = []
 
-    chStatsAll = np.zeros((4,4))
+    chStatsAll = np.zeros((4, 4))
 
-    for i in range(1,nFiles):
+    for i in range(1, nFiles):
         print('starting: ', fAlice[i])
         rawData = []
         filesForSingleRun = {}
@@ -93,7 +93,8 @@ def process_multiple_data_runs(files, aggregate=True, findSync=False):
         # filesForSingleRun['bob'] = fBob[i]
         # filesForSingleRun['config'] = fConfig[i]
         # filesForSingleRun
-        counts, compressedData = process_single_run(filesForSingleRun, aggregate=aggregate, findSync=False)
+        counts, compressedData = process_single_run(
+            filesForSingleRun, aggregate=aggregate)
 
         chStatsAll += counts.astype('int')
         print(chStatsAll.astype(int))
@@ -102,21 +103,24 @@ def process_multiple_data_runs(files, aggregate=True, findSync=False):
     chStatsAll = chStatsAll.astype('int')
     return chStatsAll
 
+
 def check_for_detector_going_normal(ttags):
     pass
 
+
 def analyze_data(rawData, config):
     ttagOffset = config['analysis']['ttagOffset']
-    abDelay =config['analysis']['pulseABDelay']
-    syncTTagDiff =config['analysis']['syncTTagDiff']
-    usePockelsMask =config['pockelProp']['enable']
-    
+    abDelay = config['analysis']['pulseABDelay']
+    syncTTagDiff = config['analysis']['syncTTagDiff']
+    usePockelsMask = config['pockelProp']['enable']
+
     paramsCh = get_ch_settings(config)
     divider = paramsCh['divider']*1.
     findPk = paramsCh['findPk']
     isTrim = True
 
-    trimmedData, err = cl.trim_data(rawData, ttagOffset, abDelay, syncTTagDiff, paramsCh)
+    trimmedData, err = cl.trim_data(
+        rawData, ttagOffset, abDelay, syncTTagDiff, paramsCh)
 
     paramsSingle = copy.deepcopy(paramsCh)
     params = {'alice': {}, 'bob': {}}
@@ -128,9 +132,10 @@ def analyze_data(rawData, config):
             paramsSingle['alice']['channels']['detector'] = detChA
             paramsSingle['bob']['channels']['detector'] = detChB
 
-            props = cl.calc_data_properties(trimmedData, paramsSingle, divider, findPk=findPk)
+            props = cl.calc_data_properties(
+                trimmedData, paramsSingle, divider, findPk=findPk)
 
-    reducedData ={}
+    reducedData = {}
 
     offset = {}
 
@@ -140,10 +145,11 @@ def analyze_data(rawData, config):
     pcLength = int(config['pockelProp']['length'])+1
 
     for party in rawData.keys():
-        reduced = cl.get_processed_data(trimmedData[party], props[party], 
-                                    offset[party], pcStart, pcLength)
+        reduced = cl.get_processed_data(trimmedData[party], props[party],
+                                        offset[party], pcStart, pcLength)
         reducedData[party] = reduced
     return reducedData
+
 
 def process_counts(data):
     SA = data['alice']['Setting']
@@ -151,28 +157,30 @@ def process_counts(data):
     SB = data['bob']['Setting']
     OB = data['bob']['Outcome']
 
-    sett = [1,2]
+    sett = [1, 2]
     counts = []
     for s in sett:
         for j in sett:
-            SAMask = SA==s 
-            SBMask = SB==j
+            SAMask = SA == s
+            SBMask = SB == j
             settingsMask = SAMask & SBMask
-            OAMask = OA>0 
-            OBMask = OB>0 
+            OAMask = OA > 0
+            OBMask = OB > 0
             # print(OA, OB)
             coinc = np.sum(settingsMask & OAMask & OBMask)
             singlesA = np.sum(settingsMask & OAMask)
             singlesB = np.sum(settingsMask & OBMask)
-            nullOutcomes = np.sum(settingsMask & np.logical_not(OAMask) & np.logical_not(OBMask))
+            nullOutcomes = np.sum(settingsMask & np.logical_not(
+                OAMask) & np.logical_not(OBMask))
             res = [nullOutcomes, singlesA, singlesB, coinc]
             counts.append(res)
 
     counts = np.array(counts).astype(int)
     return counts
 
+
 def get_ch_settings(config):
-    params = {'alice': {}, 'bob':{}}
+    params = {'alice': {}, 'bob': {}}
     for key in params:
         params[key]['radius'] = config[key]['coin_radius'] - 1
         params[key]['channels'] = config[key]['channelmap']
@@ -183,25 +191,33 @@ def get_ch_settings(config):
     params['findPk'] = config['analysis']['findPk']
     return(params)
 
+
 def load_config_data(fname):
-        config_fp = open(fname,'r')
-        config = yaml.safe_load(config_fp)
-        config_fp.close()
-        return config
+    config_fp = open(fname, 'r')
+    config = yaml.safe_load(config_fp)
+    config_fp.close()
+    return config
+
 
 def convert_str_to_bytes(strData):
     data = base64.b64decode(strData)
     return data
 
+
 def convert_bytes_to_str(binData):
     strData = base64.b64encode(binData).decode('utf-8')
     return strData
+
+
 '''
 Loop through a directory and return a list of files for Alice and Bob for each
 data run.
 '''
+
+
 def get_files_in_folder(path):
-    files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
+    files = [f for f in os.listdir(
+        path) if os.path.isfile(os.path.join(path, f))]
     files.sort()
     files = [f for f in files if ".dat" in f]
     # files = [f for f in files if "2022_10_05_23_38_alice_suboptimal_test_run_two_1_60s.dat" in f]
@@ -225,6 +241,7 @@ def get_files_in_folder(path):
 
     return filesOut
 
+
 def main():
     path = '/Users/lks/Documents/BellData/2022/'
     date = '2022_10_06'
@@ -233,7 +250,7 @@ def main():
     files['output'] = []
 
     for i in range(len(files['alice'])):
-        fNameOut = files['bob'][i].replace('_bob','').replace('.dat','')
+        fNameOut = files['bob'][i].replace('_bob', '').replace('.dat', '')
         fNameOut += '.bin.zip'
         fNameOut = fNameOut.split('/')[-1]
         fOut = path+'processed/test2/'+date+'/'+fNameOut
@@ -250,7 +267,7 @@ def main():
 
     # fileA = ['2022_03_11_23_12_alice__80_percent_check_60s_.dat']
     # fileB = ['2022_03_11_23_12_bob__80_percent_check_60s_.dat']
-    # fAlice = path+'/Alice/'+date+'/'+fileA 
+    # fAlice = path+'/Alice/'+date+'/'+fileA
     # fBob = path+'/Bob/'+date+'/'+fileB
 
     # files ={}
@@ -258,7 +275,7 @@ def main():
     # files['bob'] = []
     # files['output'] = []
     # for i in range(len(fileA)):
-    #     fAlice = path+'/Alice/'+date+'/'+fileA[i] 
+    #     fAlice = path+'/Alice/'+date+'/'+fileA[i]
     #     fBob = path+'/Bob/'+date+'/'+fileB[i]
     #     fNameOut = fileB[i].replace('_bob','').replace('.dat','')#.split['.'][0]
     #     fNameOut += '.bin.zip'
@@ -271,16 +288,17 @@ def main():
     # configFile = 'client.yaml'
     # config = load_config_data(configFile)
 
-    filesSingle ={}
-    indx = 0
+    filesSingle = {}
+    indx = 11
     for key, fArray in files.items():
         try:
             filesSingle[key] = fArray[indx]
             print(fArray[indx])
         except Exception:
             pass
-    chStatsAll, compressedData = process_single_run(filesSingle, aggregate=True, findSync=False)
-    # chStatsAll = process_multiple_data_runs(files, aggregate=True, findSync=False)
+    chStatsAll, compressedData = process_single_run(
+        filesSingle, aggregate=True)
+    # chStatsAll = process_multiple_data_runs(files)
 
     # chStatsAll = np.array([[66074860,2384557,2309746,105999],
     #      [68059180,2381787,996158,761777],
@@ -291,6 +309,7 @@ def main():
     print(chStatsAll)
     print('')
     CH, CHn, ratio, pValue = cl.calc_violation(chStatsAll)
+
 
 if __name__ == '__main__':
     main()
