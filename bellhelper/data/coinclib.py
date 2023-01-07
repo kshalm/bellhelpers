@@ -122,6 +122,7 @@ def trim_data(data, ttagOffset, abDelay, syncTTagDiff, params, dt=None):
     bData = data['bob']['ttag'] + ttagOffset # event number for all bob tags, corrected for delay
 
     startTTag = max(aData[0], bData[0])
+    # print('startTTag', startTTag)
     abDelay = -1
     # print('abDelay', abDelay, 'START', startTTag, aData[0], bData[0],ttagOffset, '\n')
 
@@ -154,8 +155,11 @@ def trim_data(data, ttagOffset, abDelay, syncTTagDiff, params, dt=None):
         startTTag = 0
         endTime = max(aData[-1], bData[-1])
 
+    print('error', err)
+
     aClicks = (aData>=firstSyncTTag) & (aData<=endTime)
     bClicks = (bData>=firstSyncTTag) & (bData<=endTime)
+
 
     trimmedData['alice'] = data['alice'][aClicks]
     trimmedData['bob'] = data['bob'][bClicks]
@@ -170,7 +174,6 @@ def trim_data(data, ttagOffset, abDelay, syncTTagDiff, params, dt=None):
         syncArray, sBool = get_sync_array(trimmedData[party], ch['sync'])
         nSyncs[party] = sBool.sum()
         syncBool[party] = sBool
-    # print(nSyncs)
 
     if (nSyncs['alice']==nSyncs['bob']):
         partyToTrim = None 
@@ -180,9 +183,9 @@ def trim_data(data, ttagOffset, abDelay, syncTTagDiff, params, dt=None):
         partyToTrim = 'bob'
 
     if partyToTrim is not None:
-        syncTTAGS = trimmedData[partyToTrim][syncBool[partyToTrim]]
+        syncTTAGS = trimmedData[partyToTrim]['ttag'][syncBool[partyToTrim]]
         lastSyncTTAG = syncTTAGS[-1]
-        mask = trimmedData[partyToTrim]['ttag']<lastSyncTTAG[-1]
+        mask = trimmedData[partyToTrim]['ttag']<lastSyncTTAG
         trimmedData[partyToTrim] = trimmedData[partyToTrim][mask]
 
     return trimmedData, err
@@ -261,6 +264,11 @@ def calc_period(det, divider=800, syncCh=6, maxPeriod=170):
     syncBool = det['ch']==syncCh
     syncs = det['ttag'][syncBool]
     laserPeriodArray = np.diff(syncs)/divider
+    # print('det', det)
+    # print('syncBool', syncBool)
+    # print('syncs', syncs)
+    # print('divider', divider)
+    # print('laserPeriodArray', laserPeriodArray)
     
     laserPeriodArray = np.append(laserPeriodArray, laserPeriodArray[-1])
     laserPeriod = np.mean(laserPeriodArray[laserPeriodArray < maxPeriod])
@@ -273,7 +281,7 @@ def check_for_timetagger_jump(rawData, params):
     jump = {'skip': False, 'party': [], 'position': []}
 
     for key in rawData:
-        syncBool = rawData[key]['ch'] == params[key]['channels']['sync']
+        syncBool = rawData[key]['ch'] == params[key]['channelmap']['sync']
         sync = rawData[key]['ttag'][syncBool]
 
         diffTTags = np.abs(np.diff(sync))
@@ -526,33 +534,6 @@ def compress_binary_data(data, aggregate=False):
     return compressedData
 
 def write_to_compressed_file(fname, data, aggregate=False):
-    # # f = open(fname, 'a+')
-    # '''
-    # data types:
-    # 'u1' = 1-byte unsinged integer
-    # 'u8' = 8-byte unsigned integers
-    # '''
-    # sA = data['alice']['Setting'].astype('u1') # Alice Settings
-    # sB = data['bob']['Setting'].astype('u1') # Bob settings
-    # eA = data['alice']['Outcome'].astype('u8') # Alice outcome
-    # eB = data['bob']['Outcome'].astype('u8') # Bob outcome
-    # if aggregate:
-    #     dataType = [('sA','u1'),('sB','u1'),('eA','u1'), ('eB','u1')]
-    #     eA = (eA>0).astype('u1')
-    #     eB = (eB>0).astype('u1')
-    # else:
-    #     dataType = [('sA','u1'),('sB','u1'),('eA','u8'), ('eB','u8')]
-
-    # # Create a structured array. Each row represents the results from one trial.
-    # data = np.zeros(len(sA), dtype = dataType)
-
-    # data['sA'] = sA
-    # data['sB'] = sB
-    # data['eA'] = eA
-    # data['eB'] = eB
-
-    # # data.tofile(fname)
-    # binData = data.tobytes()
     compressedData = compress_binary_data(data, aggregate=aggregate)
 
     with open(fname, mode="wb") as fout:
@@ -774,6 +755,7 @@ def calc_offset(data, params, divider):
     coinc = find_offset_coinc(props, abdelay, corr)
     # coinc = coincArray[ix]
     print("coinc", coincArray[ix])
+    print('')
 
     # Now compute the average timetag offset between coincidence pairs
     if len(coinc)>0:

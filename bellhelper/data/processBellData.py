@@ -29,6 +29,10 @@ def process_single_run(files, aggregate=True, findSync=False):
         rawData, timeTaggers = find_ttag_offset(timeTaggers, rawData)
 
     #@TODO check for timetagger jumps
+    jumps = cl.check_for_timetagger_jump(rawData, config)
+    print('')
+    print('jumps',jumps)
+    print('')
 
     reducedData = analyze_data(rawData, timeTaggers.config)
 
@@ -42,7 +46,7 @@ def process_single_run(files, aggregate=True, findSync=False):
     return counts, compressedData
 
 def find_ttag_offset(timeTaggers, rawData):
-    nSyncs = 500000
+    nSyncs = 1000000
     dataSync = {}
     dataSync['alice'] = rawData['alice'][0:nSyncs]
     dataSync['bob'] = rawData['bob'][0:nSyncs]
@@ -54,6 +58,9 @@ def find_ttag_offset(timeTaggers, rawData):
     for p in pkIdx:
         config[p]['channelmap']['pkIdx'] = pkIdx[p]
 
+    print('')
+    print(config['analysis'])
+    print('')
     # timeTaggers.configFile = fConfig
     timeTaggers.config = config
     # timeTaggers.save_config_data()
@@ -86,7 +93,7 @@ def process_multiple_data_runs(files, aggregate=True, findSync=False):
         # filesForSingleRun['bob'] = fBob[i]
         # filesForSingleRun['config'] = fConfig[i]
         # filesForSingleRun
-        counts, compressedData = process_single_run(filesForSingleRun, aggregate=aggregate)
+        counts, compressedData = process_single_run(filesForSingleRun, aggregate=aggregate, findSync=False)
 
         chStatsAll += counts.astype('int')
         print(chStatsAll.astype(int))
@@ -197,7 +204,7 @@ def get_files_in_folder(path):
     files = [f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))]
     files.sort()
     files = [f for f in files if ".dat" in f]
-    # print(files)
+    # files = [f for f in files if "2022_10_05_23_38_alice_suboptimal_test_run_two_1_60s.dat" in f]
     filesAlice = []
     filesBob = []
     filesConfig = []
@@ -215,6 +222,7 @@ def get_files_in_folder(path):
     filesOut['bob'] = filesBob
     filesOut['config'] = filesConfig
 
+
     return filesOut
 
 def main():
@@ -228,7 +236,7 @@ def main():
         fNameOut = files['bob'][i].replace('_bob','').replace('.dat','')
         fNameOut += '.bin.zip'
         fNameOut = fNameOut.split('/')[-1]
-        fOut = path+'processed/test/'+date+'/'+fNameOut
+        fOut = path+'processed/test2/'+date+'/'+fNameOut
         files['output'].append(fOut)
         # print(fOut)
 
@@ -264,15 +272,15 @@ def main():
     # config = load_config_data(configFile)
 
     filesSingle ={}
-    indx =11
+    indx = 0
     for key, fArray in files.items():
         try:
             filesSingle[key] = fArray[indx]
             print(fArray[indx])
         except Exception:
             pass
-    chStatsAll, compressedData = process_single_run(filesSingle, aggregate=True)
-    # chStatsAll = process_multiple_data_runs(files)
+    chStatsAll, compressedData = process_single_run(filesSingle, aggregate=True, findSync=False)
+    # chStatsAll = process_multiple_data_runs(files, aggregate=True, findSync=False)
 
     # chStatsAll = np.array([[66074860,2384557,2309746,105999],
     #      [68059180,2381787,996158,761777],
