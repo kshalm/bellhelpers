@@ -15,7 +15,7 @@ from bellhelper.dailylogs import MyTimedRotatingFileHandler
 import bellhelper.read as read
 import logging
 import datetime
-# import bellhelper.redisHelper as rh
+import bellhelper.redisHelper as rh
 
 # Writing a new class that inherits from the TimedRotatingFileHandler
 # to implement a header for every new log file. Modification of  an
@@ -27,7 +27,7 @@ import datetime
 
 class MirrorControl():
     def __init__(self, r, ip='127.0.0.1', port=55000, name='default'):
-        print('autoalign', ip, port, name)
+        # print('autoalign', ip, port, name)
         self.r = r
         fnLog = name + "zaber_motor"
         fn = os.path.join('motor_logs', fnLog)
@@ -193,9 +193,9 @@ class MirrorControl():
         return val
 
     def log_output(self, msg, q=None):
+        msg = str(msg)
+        self.logger.info(msg)
         if q is not None:
-            msg = str(msg)
-            self.logger.info(msg)
             q.put(msg)
         # print(msg)
 
@@ -239,8 +239,8 @@ class MirrorControl():
         # optionsCG = {'maxiter': 40, 'tol': 1.E-3, 'eps': stepsize}
 
         # Set the integration time
-        oldIntTime = read.set_integration_time(
-            self.r, self.intTime, self.CONFIGKEY)
+        # oldIntTime = read.set_integration_time(
+        #    self.r, self.intTime, self.CONFIGKEY)
 
         if (dir == 'y' or dir == 'xy' or dir == 'y single'
                 or dir == 'xy single'):
@@ -282,8 +282,9 @@ class MirrorControl():
 
         self.move_all_to_position(self.BESTPOS)
         # Set the integration time back to it's original value
-        read.set_integration_time(self.r, oldIntTime, self.CONFIGKEY)
-        q.put('END')
+        # read.set_integration_time(self.r, oldIntTime, self.CONFIGKEY)
+        if q is not None:
+            q.put('END')
 
 # IPZaberSource = '132.163.53.83'
 # IPZaberBob = '132.163.53.126'
@@ -300,3 +301,12 @@ class MirrorControl():
 #     zAlice.optimize_eff_scipy('VPath', 'effA', 'xy')
 #     print("Aligning Bob's Lab")
 #     zBob.optimize_eff_scipy('VPath', 'effB', 'xy')
+
+
+if __name__ == '__main__':
+    r =\
+        rh.connect_to_redis({'ip': 'bellamd1.campus.nist.gov',
+                             'port': 6379, 'db': 0})
+    alice = MirrorControl(r, ip='132.163.53.101', port=55000, name='alice')
+    source = MirrorControl(r, ip='132.163.53.218', port=55000, name='source')
+    source.optimize_eff_scipy('Both', 'effAB', 'xy')
