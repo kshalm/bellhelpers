@@ -187,7 +187,8 @@ class PolControl():
         out = ''
         for msg in msgs:
             out += str(msg)
-        self.logger.info(out)
+            out += ' ,'
+        self.logger.info(out[:-2])
         # print(msg)
 
     def return_connected_motors(self):
@@ -298,7 +299,7 @@ class PolControl():
                     best_pos.append(float(mc_obj.getPos(waveplate)))
                 params['best_pos'] = np.array(best_pos)
                 params['best_counts'] = counts
-            self.log_output(counts, params['best_counts'])
+            # self.log_output(counts, params['best_counts'])
             return counts
 
         ''' pass a list  of pol control objects and plate_attrs to choose

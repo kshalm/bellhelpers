@@ -15,18 +15,7 @@ from bellMotors.motorControlZaber import MotorControllerZaber
 # import bellhelper.read as read
 import logging
 import datetime
-
-try:
-    import bellhelper.redisHelper as rh
-    # from bellMotors.motorControlZaber import MotorControllerZaber
-    from bellhelper.dailylogs import MyTimedRotatingFileHandler
-    import bellhelper.read as read
-except Exception:
-    import redisHelper as rh
-    # from motorControlZaber import MotorControllerZaber
-    from dailylogs import MyTimedRotatingFileHandler
-    import read as read
-# import bellhelper.redisHelper as rh
+import bellhelper.redisHelper as rh
 
 # Writing a new class that inherits from the TimedRotatingFileHandler
 # to implement a header for every new log file. Modification of  an
@@ -37,7 +26,7 @@ except Exception:
 
 
 class MirrorControl():
-    def __init__(self, r, ip='127.0.0.1', port=55000, name='default', redisChannel='log:motoralign'):
+    def __init__(self, r, ip='127.0.0.1', port=55000, name='default'):
         # print('autoalign', ip, port, name)
         self.r = r
         self.redisChannel = redisChannel
@@ -207,9 +196,9 @@ class MirrorControl():
         return val
 
     def log_output(self, msg, q=None):
+        msg = str(msg)
+        self.logger.info(msg)
         if q is not None:
-            msg = str(msg)
-            self.logger.info(msg)
             q.put(msg)
         if self.r is not None:
             msgDict = {'name': self.name,'ip':self.ip, 'port':self.port, 'msg':msg}
@@ -257,7 +246,7 @@ class MirrorControl():
 
         # Set the integration time
         # oldIntTime = read.set_integration_time(
-        #     self.r, self.intTime, self.CONFIGKEY)
+        #    self.r, self.intTime, self.CONFIGKEY)
 
         if (dir == 'y' or dir == 'xy' or dir == 'y single'
                 or dir == 'xy single'):
@@ -300,10 +289,8 @@ class MirrorControl():
         self.move_all_to_position(self.BESTPOS)
         # Set the integration time back to it's original value
         # read.set_integration_time(self.r, oldIntTime, self.CONFIGKEY)
-        try:
+        if q is not None:
             q.put('END')
-        except:
-            pass
 
 # IPZaberSource = '132.163.53.83'
 # IPZaberBob = '132.163.53.126'
@@ -321,18 +308,11 @@ class MirrorControl():
 #     print("Aligning Bob's Lab")
 #     zBob.optimize_eff_scipy('VPath', 'effB', 'xy')
 
-def main():
-    rConfig = {'ip': 'bellamd1.campus.nist.gov', 'port':6379, 'db':0}
-    r = rh.connect_to_redis(rConfig)
-    # motorIP = '132.163.53.218' # Source
-    motorIP = '132.163.53.101' # Alice
-    # motorIP = '132.163.53.148' # Bob
-    m = MirrorControl(r, ip=motorIP, port=55000, name='Alice')
-    pos = m.get_all_positions()
-    print('positions:', pos)
-    print(m.motor_info)
-    m.optimize_eff('HPath', countType='effA', dir='xy')
-    print(rh.get_last_entry(m.r, m.redisChannel, count=100))
 
 if __name__ == '__main__':
-    main()
+    r =\
+        rh.connect_to_redis({'ip': 'bellamd1.campus.nist.gov',
+                             'port': 6379, 'db': 0})
+    alice = MirrorControl(r, ip='132.163.53.101', port=55000, name='alice')
+    source = MirrorControl(r, ip='132.163.53.218', port=55000, name='source')
+    source.optimize_eff_scipy('Both', 'effAB', 'xy')

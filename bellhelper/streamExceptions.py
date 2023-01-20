@@ -9,34 +9,68 @@ class StreamException(Exception):
         super().__init__(self.message)
 
 
-class TimeTaggerRepeatingException(StreamException):
-    def __init__(self, party, message=None):
-        msg = party+"'s"
-        msg = " timetagger is stuck repeating the same elements."
-        msg += "It may need to be restarted."
-        if message is None:
-            message = msg
+class TimeTaggerException(StreamException):
+    def __init__(self, party, message=' has returned an exception'):
+        msg = party + "'s timetagger:"
+        self.message = msg + message
         self.party = party
-        self.message = message
         super().__init__(self.message)
 
 
-class nullCountsTimeTaggerException(StreamException):
+class RepeatingTimeTaggerException(TimeTaggerException):
     def __init__(self, party, message=None):
-        msg = party+"'s"
-        msg += " timetagger has no counts on any channel."
+        msg = " is stuck repeating the same elements."
+        msg += " It may need to be restarted."
         if message is None:
             message = msg
-        self.party = party
-        self.message = message
-        super().__init__(self.message)
+        super().__init__(party, message)
 
 
-class nullCountsException(StreamException):
+class NullCountsTimeTaggerException(TimeTaggerException):
+    def __init__(self, party, message=None):
+        msg = " has no counts on any channel."
+        if message is None:
+            message = msg
+        super().__init__(party, message)
+
+
+class LaserDriftTimeTaggerException(TimeTaggerException):
+    def __init__(self, party, message=None):
+        msg = " indicates that the laser rep rate is drifting"
+        if message is None:
+            message = msg
+        super().__init__(party, message)
+
+
+class LaserModelockTimeTaggerException(TimeTaggerException):
+    def __init__(self, party, message=None):
+        msg = " indicates that the laser has lost modelock."
+        if message is None:
+            message = msg
+        super().__init__(party, message)
+
+
+class BadCountTimeTaggerException(TimeTaggerException):
+    def __init__(self, party, message=None):
+        msg = " has low counts on all channels."
+        if message is None:
+            message = msg
+        super().__init__(party, message)
+
+
+class DetectorNormalTimeTaggerException(TimeTaggerException):
+    def __init__(self, party, message=None):
+        msg = " indicates that the detector is normal."
+        if message is None:
+            message = msg
+        super().__init__(party, message)
+
+
+class NullCountsException(StreamException):
     def __init__(self, party, message=None):
         msg = party
         msg += " has no counts detected. Detectors may need to be reset, "
-        msg += "the laser is off, or some other error has occurred."
+        msg += " the laser is off, or some other error has occurred."
         if message is None:
             message = msg
         self.party = party
@@ -47,7 +81,7 @@ class nullCountsException(StreamException):
     #     return self.party+" "+self.message
 
 
-class streamTimeoutException(StreamException):
+class StreamTimeoutException(StreamException):
     def __init__(self, channel='', timeElapsed='', message=None):
         msg = "Timeout retreiving from the stream"
         msg += channel+'\n'
