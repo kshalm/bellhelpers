@@ -20,7 +20,7 @@ def get_power(redis_db, int_time,
               COUNTPATH='VV',
               include_null_counts=False,
               trim=True, loop_args={}):
-    counts = get_counts(redis_db, intTime=int_time,
+    counts = get_counts(redis_db, int_time=int_time,
                         count_path=COUNTPATH,
                         include_null_counts=include_null_counts,
                         trim=trim, loop_args=loop_args)[COUNTPATH]
@@ -62,13 +62,13 @@ def get_counts(r, int_time=0.2, count_path='VV',
     Returns: Array of [singlesAlice, Coinc, SinglesBob, EfficiencyAlice, EfficiencyBob, EfficiencyAB]
              or returns None if no valid counts obtained.
     '''
-    err_check_args = {'countPath': count_path,
-                      'includeNullCounts': include_null_counts, 'trim': trim}
+    err_check_args = {'count_path': count_path,
+                      'include_null_counts': include_null_counts, 'trim': trim}
 
     # numTries=numTries, timeOut=timeOut, sleepTime=sleepTime)
     count_list = rh.loop_counts(
         r, CHANNELCOUNTS, error_check_counts, err_check_args,
-        int_time=int_time, **loop_args)
+        intTime=int_time, **loop_args)
 
     if count_list is None:
         return None
