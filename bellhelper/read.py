@@ -24,7 +24,7 @@ def get_power(redis_db, intTime,
                         countPath=COUNTPATH,
                         includeNullCounts=includeNullCounts,
                         trim=trim)[COUNTPATH]
-    print(counts)
+    # print(counts)
     if COUNTTYPE == 'SA':
         val = counts[0]
     elif COUNTTYPE == 'Coinc':

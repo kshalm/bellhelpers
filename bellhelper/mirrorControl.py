@@ -11,10 +11,21 @@ from scipy.optimize import minimize
 # from scipy.optimize import basinhopping
 # from scipy import optimize
 from bellMotors.motorControlZaber import MotorControllerZaber
-from bellhelper.dailylogs import MyTimedRotatingFileHandler
-import bellhelper.read as read
+# from bellhelper.dailylogs import MyTimedRotatingFileHandler
+# import bellhelper.read as read
 import logging
 import datetime
+
+try:
+    import bellhelper.redisHelper as rh
+    # from bellMotors.motorControlZaber import MotorControllerZaber
+    from bellhelper.dailylogs import MyTimedRotatingFileHandler
+    import bellhelper.read as read
+except Exception:
+    import redisHelper as rh
+    # from motorControlZaber import MotorControllerZaber
+    from dailylogs import MyTimedRotatingFileHandler
+    import read as read
 # import bellhelper.redisHelper as rh
 
 # Writing a new class that inherits from the TimedRotatingFileHandler
@@ -26,15 +37,18 @@ import datetime
 
 
 class MirrorControl():
-    def __init__(self, r, ip='127.0.0.1', port=55000, name='default'):
-        print('autoalign', ip, port, name)
+    def __init__(self, r, ip='127.0.0.1', port=55000, name='default', redisChannel='log:motoralign'):
+        # print('autoalign', ip, port, name)
         self.r = r
+        self.redisChannel = redisChannel
         fnLog = name + "zaber_motor"
         fn = os.path.join('motor_logs', fnLog)
         self.logger = self.setup_logger(name, fn)
         # logging.basicConfig(filename=fnLog, level=logging.INFO)
         # logger.basicConfig(filename='example.log', format='%(asctime)s %(message)s')
         # print(dtnow)
+        self.ip = ip
+        self.port = port
         self.zb = MotorControllerZaber(ip, port=port)
         self.intTime = .8
         # Disable the Potentiometer knobs
@@ -189,7 +203,7 @@ class MirrorControl():
         # params['q'].put(str(counts) + ', ' + str(self.BESTCOUNTS))
         # print counts, self.BESTCOUNTS
         self.log_output(str(counts) + ', ' +
-                        str(self.BESTCOUNTS) + ', ' + str(pos), params['q'])
+                        str(self.BESTCOUNTS) + ', ' + str(pos))#, params['q'])
         return val
 
     def log_output(self, msg, q=None):
@@ -197,9 +211,12 @@ class MirrorControl():
             msg = str(msg)
             self.logger.info(msg)
             q.put(msg)
+        if self.r is not None:
+            msgDict = {'name': self.name,'ip':self.ip, 'port':self.port, 'msg':msg}
+            rh.send_to_redis(self.r, self.redisChannel, msgDict, max_len=100)
         # print(msg)
 
-    def optimize_eff_scipy(self, path, countType='effAB', dir='xy',
+    def optimize_eff(self, path, countType='effAB', dir='xy',
                            COUNTPATH='VV', q=None):
         # global STARTPOS, BESTPOS, BESTCOUNTS, COUNTTYPE, channels, pathVChanX, pathVChanY, pathHChanX, pathHChanY
         self.COUNTTYPE = countType
@@ -239,8 +256,8 @@ class MirrorControl():
         # optionsCG = {'maxiter': 40, 'tol': 1.E-3, 'eps': stepsize}
 
         # Set the integration time
-        oldIntTime = read.set_integration_time(
-            self.r, self.intTime, self.CONFIGKEY)
+        # oldIntTime = read.set_integration_time(
+        #     self.r, self.intTime, self.CONFIGKEY)
 
         if (dir == 'y' or dir == 'xy' or dir == 'y single'
                 or dir == 'xy single'):
@@ -282,8 +299,11 @@ class MirrorControl():
 
         self.move_all_to_position(self.BESTPOS)
         # Set the integration time back to it's original value
-        read.set_integration_time(self.r, oldIntTime, self.CONFIGKEY)
-        q.put('END')
+        # read.set_integration_time(self.r, oldIntTime, self.CONFIGKEY)
+        try:
+            q.put('END')
+        except:
+            pass
 
 # IPZaberSource = '132.163.53.83'
 # IPZaberBob = '132.163.53.126'
@@ -300,3 +320,19 @@ class MirrorControl():
 #     zAlice.optimize_eff_scipy('VPath', 'effA', 'xy')
 #     print("Aligning Bob's Lab")
 #     zBob.optimize_eff_scipy('VPath', 'effB', 'xy')
+
+def main():
+    rConfig = {'ip': 'bellamd1.campus.nist.gov', 'port':6379, 'db':0}
+    r = rh.connect_to_redis(rConfig)
+    # motorIP = '132.163.53.218' # Source
+    motorIP = '132.163.53.101' # Alice
+    # motorIP = '132.163.53.148' # Bob
+    m = MirrorControl(r, ip=motorIP, port=55000, name='Alice')
+    pos = m.get_all_positions()
+    print('positions:', pos)
+    print(m.motor_info)
+    m.optimize_eff('HPath', countType='effA', dir='xy')
+    print(rh.get_last_entry(m.r, m.redisChannel, count=100))
+
+if __name__ == '__main__':
+    main()
