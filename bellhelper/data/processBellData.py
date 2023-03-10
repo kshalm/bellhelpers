@@ -1,4 +1,3 @@
-import timetaggers as tt 
 import numpy as np
 import copy
 # import zlib
@@ -189,7 +188,7 @@ def get_ch_settings(config):
     params['divider'] = config['DIVIDER']*1.
     params['measureViol'] = config['measureViol']
     params['findPk'] = config['analysis']['findPk']
-    return(params)
+    return (params)
 
 
 def load_config_data(fname):
@@ -237,7 +236,6 @@ def get_files_in_folder(path):
     filesOut['alice'] = filesAlice
     filesOut['bob'] = filesBob
     filesOut['config'] = filesConfig
-
 
     return filesOut
 

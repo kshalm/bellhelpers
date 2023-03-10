@@ -209,7 +209,7 @@ def loop_counts(r, channel, error_function, errorArgs, intTime=0.2,
                 timeOutExceeded = (timeOut is not None) and (
                     timeElapsed > timeOut)
                 if timeOutExceeded:
-                    err = stExcept.streamTimeoutException(
+                    err = stExcept.StreamTimeoutException(
                         channel, timeElapsed=timeElapsed)
                     raise err
                 continue

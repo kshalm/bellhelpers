@@ -119,7 +119,7 @@ def get_violation(r, int_time=0.2, count_path='VV',
     '''
     err_check_args = {'count_path': count_path,
                       'include_null_counts': include_null_counts, 'trim': trim}
-    loop_args['int_time'] = int_time
+    loop_args['intTime'] = int_time
 
     count_list = rh.loop_counts(
         r, CHANNELVIOLATION, error_check_violation,
@@ -163,7 +163,7 @@ def get_stats(r, int_time=0.5, count_path=('alice', 'bob'),
                       'include_null_counts': include_null_counts,
                       'extended_checks': extended_checks,
                       'extended_check_args': extended_check_args}
-    loop_args['int_time'] = int_time
+    loop_args['intTime'] = int_time
 
     count_list = rh.loop_counts(
         r, CHANNELSTATS, error_check_stats, err_check_args, **loop_args)
@@ -372,9 +372,9 @@ def error_check_stats(previous_counts, current_counts,
     counts_valid = True
     parties = count_path
     for p in parties:
-        current_array = np.array(current_counts[p]).astype(int)
-        previous_array = np.array(previous_counts[p]).astype(int)
-        if current_array == previous_array:
+        current_array = np.array(current_counts[p]).astype(int).flatten()
+        previous_array = np.array(previous_counts[p]).astype(int).flatten()
+        if (current_array == previous_array).all():
             raise stExcept.RepeatingTimeTaggerException(p)
 
         if np.sum(current_array) == 0 and not include_null_counts:
