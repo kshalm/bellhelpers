@@ -240,7 +240,7 @@ def error_check_counts(previous_counts, current_counts,
         if (current_sa == 0):
             counts_valid = False
             null_exception = stExcept.NullCountsException('alice')
-            raise nullException
+            raise null_exception
         if (current_sb == 0):
             counts_valid = False
             null_exception = stExcept.NullCountsException('bob')

@@ -39,15 +39,17 @@ log.setLevel(logging.INFO)
 class PolControl():
     """Class to connect to various bridge and source motors
     and move them while logging their positions.
-    init args: 
-          r - redis database. provide object returned upon redis connection.
+    init args:
+          r - redis database/ redis connection.
           ip - ip of the motorserveer
           port - port for the motorserver
           name - optional name for the pol control object
     """
 
     def __init__(self, r=None, ip='127.0.0.1', port=55000,
-                 name='default'):
+                 name='default', log_stuff=False):
+        # length of the undo and redo stack that allows for
+        # simple undo and redo operations
         self.UNDO_STACK_MAX = 20
         self.r = r
         fnLog = name + "_polarization_motors"
@@ -61,10 +63,9 @@ class PolControl():
         self.add_to_stack(self.update_positions(), 'undo')
         self.motor_zeros = {}
         self.init_zeros()
+        self.log_stuff = log_stuff
         self.set_motor_information()
         self.logger.info(self.header_updater())
-        # length of the undo and redo stack that allows for
-        # simple undo and redo operations
 
     def init_zeros(self):
         for key in self.motor_list:
@@ -132,15 +133,19 @@ class PolControl():
     def _logging_wrapper(func):
         @wraps(func)
         def wrapper(self, *args, **kwargs):
-            start_pos = json.dumps(self.mc.getAllPos())
-            ret = func(self, *args, **kwargs)
-            end_pos = json.dumps(self.mc.getAllPos())
-            self.logger.info("start positions : " + start_pos)
-            self.logger.info("moved to : " + end_pos)
-            self.logger.info("function used was : " + func.__name__
-                             + '\n\n\n')
-            self.add_to_stack(self.update_positions(), 'undo')
-            return ret
+            if self.log_stuff:
+                start_pos = json.dumps(self.mc.getAllPos())
+                ret = func(self, *args, **kwargs)
+                end_pos = json.dumps(self.mc.getAllPos())
+                self.logger.info("start positions : " + start_pos)
+                self.logger.info("moved to : " + end_pos)
+                self.logger.info("function used was : " + func.__name__
+                                 + '\n\n\n')
+                self.add_to_stack(self.update_positions(), 'undo')
+                return ret
+            else:
+                # dont log, simply run the function
+                return func(self, *args, **kwargs)
         return wrapper
 
     def set_offset(self, name, zero):
@@ -181,7 +186,7 @@ class PolControl():
         handler.setFormatter(formatter)
         logger.setLevel(level)
         logger.addHandler(handler)
-        return(logger)
+        return (logger)
 
     def log_output(self, *msgs):
         out = ''
