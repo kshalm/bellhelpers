@@ -50,7 +50,7 @@ class MirrorControl():
         self.ip = ip
         self.port = port
         self.zb = MotorControllerZaber(ip, port=port)
-        self.intTime = .8
+        self.intTime = 1
         # Disable the Potentiometer knobs
         self.zb.potentiometer_all_enabled(False)
         # print('Set potentiometer')
@@ -87,7 +87,7 @@ class MirrorControl():
         handler.setFormatter(formatter)
         logger.setLevel(level)
         logger.addHandler(handler)
-        return(logger)
+        return (logger)
 
     def header_updater(self):
         dtnow = datetime.datetime.now().strftime("Initializing at: %H:%M:%S")
@@ -107,7 +107,7 @@ class MirrorControl():
         return head_str + pos + tail_str
 
     def get_paths(self):
-        return(self.motor_info.keys())
+        return (self.motor_info.keys())
 
     def extract_channel_path_names(self):
         motor_info = {}
@@ -203,7 +203,7 @@ class MirrorControl():
         # params['q'].put(str(counts) + ', ' + str(self.BESTCOUNTS))
         # print counts, self.BESTCOUNTS
         self.log_output(str(counts) + ', ' +
-                        str(self.BESTCOUNTS) + ', ' + str(pos))#, params['q'])
+                        str(self.BESTCOUNTS) + ', ' + str(pos))  # , params['q'])
         return val
 
     def log_output(self, msg, q=None):
@@ -212,12 +212,13 @@ class MirrorControl():
             self.logger.info(msg)
             q.put(msg)
         if self.r is not None:
-            msgDict = {'name': self.name,'ip':self.ip, 'port':self.port, 'msg':msg}
+            msgDict = {'name': self.name, 'ip': self.ip,
+                       'port': self.port, 'msg': msg}
             rh.send_to_redis(self.r, self.redisChannel, msgDict, max_len=100)
         # print(msg)
 
     def optimize_eff(self, path, countType='effAB', dir='xy',
-                           COUNTPATH='VV', q=None):
+                     COUNTPATH='VV', q=None):
         # global STARTPOS, BESTPOS, BESTCOUNTS, COUNTTYPE, channels, pathVChanX, pathVChanY, pathHChanX, pathHChanY
         self.COUNTTYPE = countType
         self.BESTCOUNTS = 0.
@@ -321,11 +322,12 @@ class MirrorControl():
 #     print("Aligning Bob's Lab")
 #     zBob.optimize_eff_scipy('VPath', 'effB', 'xy')
 
+
 def main():
-    rConfig = {'ip': 'bellamd1.campus.nist.gov', 'port':6379, 'db':0}
+    rConfig = {'ip': 'bellamd1.campus.nist.gov', 'port': 6379, 'db': 0}
     r = rh.connect_to_redis(rConfig)
     # motorIP = '132.163.53.218' # Source
-    motorIP = '132.163.53.101' # Alice
+    motorIP = '132.163.53.101'  # Alice
     # motorIP = '132.163.53.148' # Bob
     m = MirrorControl(r, ip=motorIP, port=55000, name='Alice')
     pos = m.get_all_positions()
@@ -333,6 +335,7 @@ def main():
     print(m.motor_info)
     m.optimize_eff('HPath', countType='effA', dir='xy')
     print(rh.get_last_entry(m.r, m.redisChannel, count=100))
+
 
 if __name__ == '__main__':
     main()
