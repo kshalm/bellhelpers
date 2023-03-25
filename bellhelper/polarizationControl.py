@@ -52,11 +52,10 @@ class PolControl():
         # simple undo and redo operations
         self.UNDO_STACK_MAX = 20
         self.r = r
-        fnLog = name + "_polarization_motors"
-        fn = os.path.join('motor_logs', fnLog)
-        self.logger = self.setup_logger(name, fn)
+
         self.name = name
         self.ip = ip
+        self.port = port
         self.mc = MotorController(ip, port=port)
         self.undo_stack = []
         self.redo_stack = []
@@ -65,7 +64,11 @@ class PolControl():
         self.init_zeros()
         self.log_stuff = log_stuff
         self.set_motor_information()
-        self.logger.info(self.header_updater())
+        if self.log_stuff:
+            fnLog = name + "_polarization_motors"
+            fn = os.path.join('motor_logs', fnLog)
+            self.logger = self.setup_logger(name, fn)
+            self.logger.info(self.header_updater())
 
     def init_zeros(self):
         for key in self.motor_list:
@@ -189,11 +192,14 @@ class PolControl():
         return (logger)
 
     def log_output(self, *msgs):
-        out = ''
-        for msg in msgs:
-            out += str(msg)
-            out += ' ,'
-        self.logger.info(out[:-2])
+        if self.log_stuff:
+            out = ''
+            for msg in msgs:
+                out += str(msg)
+                out += ' ,'
+            self.logger.info(out[:-2])
+        else:
+            return
         # print(msg)
 
     def return_connected_motors(self):
