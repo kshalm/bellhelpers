@@ -13,6 +13,7 @@ import os.path
 import os
 import json
 from functools import wraps
+import threading
 
 # Writing a new class that inherits from the TimedRotatingFileHandler
 # to implement a header for every new log file. Modification of  an
@@ -224,6 +225,19 @@ class PolControl():
         self.update_positions()
         self.mc.forward(motor, delta)
         self.update_positions()
+        return
+
+    def thread_set(self, ang_dict):
+        t = []
+        mc = []
+        for wp in ang_dict:
+            ang = ang_dict[wp]
+            # print(wp)
+            mc.append(MotorController(self.ip, port=self.port))
+            t.append(threading.Thread(target=mc[-1].goto, args=(wp, ang,)))
+            t[-1].start()
+        for th in t:
+            th.join()
         return
 
     @_logging_wrapper
