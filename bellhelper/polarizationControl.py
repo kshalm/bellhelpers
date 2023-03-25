@@ -230,7 +230,6 @@ class PolControl():
     def thread_set(self, ang_dict):
         t = []
         mc = []
-        print('debug polcontrol', ang_dict)
         for wp in ang_dict:
             ang = ang_dict[wp]
             # print(wp)
