@@ -20,26 +20,32 @@ def get_power(redis_db, int_time,
               COUNTPATH='VV',
               include_null_counts=False,
               trim=True, loop_args={}):
-    counts = get_counts(redis_db, int_time=int_time,
-                        count_path=COUNTPATH,
-                        include_null_counts=include_null_counts,
-                        trim=trim, loop_args=loop_args)[COUNTPATH]
-    # print(counts)
-    if COUNTTYPE == 'SA':
-        val = counts[0]
-    elif COUNTTYPE == 'Coinc':
-        val = counts[1]
-    elif COUNTTYPE == 'SB':
-        val = counts[2]
-    elif COUNTTYPE == 'eff_a':
-        val = counts[3]
-    elif COUNTTYPE == 'eff_b':
-        val = counts[4]
-    elif COUNTTYPE == 'All':
-        val = counts
+    if COUNTPATH == 'All':
+        return get_counts(redis_db, int_time=int_time,
+                          count_path=COUNTPATH,
+                          include_null_counts=include_null_counts,
+                          trim=trim, loop_args=loop_args)
     else:
-        val = counts[5]
-    return val
+        counts = get_counts(redis_db, int_time=int_time,
+                            count_path=COUNTPATH,
+                            include_null_counts=include_null_counts,
+                            trim=trim, loop_args=loop_args)[COUNTPATH]
+        # print(counts)
+        if COUNTTYPE == 'SA':
+            val = counts[0]
+        elif COUNTTYPE == 'Coinc':
+            val = counts[1]
+        elif COUNTTYPE == 'SB':
+            val = counts[2]
+        elif COUNTTYPE == 'eff_a':
+            val = counts[3]
+        elif COUNTTYPE == 'eff_b':
+            val = counts[4]
+        elif COUNTTYPE == 'All':
+            val = counts
+        else:
+            val = counts[5]
+        return val
 
 
 def get_counts(r, int_time=0.2, count_path='VV',
@@ -141,17 +147,15 @@ def get_violation(r, int_time=0.2, count_path='VV',
     return count_dict
 
 
-def get_stats(r, int_time=0.5, count_path=('alice', 'bob'),
-              include_null_counts=False, extended_checks=False,
-              extended_check_args={},
-              loop_args={}):
+def get_stats(r, int_time=0.5, include_null_counts=False,
+              extended_checks=False, extended_check_args={},
+              loop_args={}, det_channels={}):
     '''
     r: Redis connection
     int_time: The amount of time to integrate for. This is rounded to the nearest integer multiple
              of 0.2s in the default configuration. So asking for 1.5s of data will actually return 1.6s.
              It depends on what the redis integration time value is set to–if that changes from 0.2s to
              say 0.3s, then the time will be rounded to the nearest integer multiple of 0.3s.
-    count_path: The default for this are the parties in a tuple ('alice', 'bob')
     include_null_counts: Allow either of the singles counts to be 0 if True. If False waits until a non
                        zero singles is obtained.
     loop_args = A dictionary of kwargs to be passed to the loop_counts() function.
@@ -159,10 +163,10 @@ def get_stats(r, int_time=0.5, count_path=('alice', 'bob'),
     Returns: a dictionary with the aggregated counts on each timetagger channel for each party.
              or returns None if no valid counts obtained.
     '''
-    err_check_args = {'count_path': count_path,
-                      'include_null_counts': include_null_counts,
+    err_check_args = {'include_null_counts': include_null_counts,
                       'extended_checks': extended_checks,
-                      'extended_check_args': extended_check_args}
+                      'extended_check_args': extended_check_args,
+                      'det_chnls': det_channels}
     loop_args['intTime'] = int_time
 
     count_list = rh.loop_counts(
@@ -171,7 +175,7 @@ def get_stats(r, int_time=0.5, count_path=('alice', 'bob'),
     if count_list is None:
         return None
 
-    parties = count_path
+    parties = ('alice', 'bob')
 
     count_dict = {}
     for p in parties:
@@ -246,14 +250,14 @@ def error_check_counts(previous_counts, current_counts,
             null_exception = stExcept.NullCountsException('bob')
             raise null_exception
         # Make sure that the counts have updated
-   # if (current_sa == previous_sa):
-   #     counts_valid = False
+    # if (current_sa == previous_sa):
+    #     counts_valid = False
         # print(current_counts, previous_counts)
-        # repeatException = stExcept.TimeTaggerRepeatingException('alice')
+        # repeatException = stExcept.RepeatingTimeTaggerException('alice')
         # raise repeatException
     # if (current_sb == previous_sb):
         # counts_valid = False
-        # repeatException = stExcept.TimeTaggerRepeatingException('bob')
+        # repeatException = stExcept.RepeatingTimeTaggerException('bob')
         # raise repeatException
     else:
         # Include null counts in the results. When the counts are
@@ -263,12 +267,12 @@ def error_check_counts(previous_counts, current_counts,
         # frozen
         if (current_sa > 5000) and (current_sa == previous_sa):
             counts_valid = False
-            # repeatException = stExcept.TimeTaggerRepeatingException('alice')
-            # raise repeatException
+            repeatException = stExcept.RepeatingTimeTaggerException('alice')
+            raise repeatException
         if (current_sb > 5000) and (current_sb == previous_sb):
             counts_valid = False
-            # repeatException = stExcept.TimeTaggerRepeatingException('bob')
-            # raise repeatException
+            repeatException = stExcept.RepeatingTimeTaggerException('bob')
+            raise repeatException
 
     return counts_valid
 
@@ -329,14 +333,14 @@ def error_check_violation(previous_counts, current_counts,
             nullException = stExcept.NullCountsException('bob')
             raise nullException
         # Make sure that the counts have updated
-    if does_alice_repeat:
-        counts_valid = False
-        repeatException = stExcept.TimeTaggerRepeatingException('alice')
-        raise repeatException
-    if does_bob_repeat:
-        counts_valid = False
-        repeatException = stExcept.TimeTaggerRepeatingException('bob')
-        raise repeatException
+        if does_alice_repeat:
+            counts_valid = False
+            repeatException = stExcept.RepeatingTimeTaggerException('alice')
+            raise repeatException
+        if does_bob_repeat:
+            counts_valid = False
+            repeatException = stExcept.RepeatingTimeTaggerException('bob')
+            raise repeatException
     else:
         # Include null counts in the results. Need to catch
         # the condition where one singles rate is 0. In this
@@ -345,18 +349,18 @@ def error_check_violation(previous_counts, current_counts,
         # singles counts make sure they are updating.
         if (not is_alice_null) and does_alice_repeat:
             counts_valid = False
-            repeatException = stExcept.TimeTaggerRepeatingException('alice')
+            repeatException = stExcept.RepeatingTimeTaggerException('alice')
             raise repeatException
         if (not is_bob_null) and does_bob_repeat:
             counts_valid = False
-            # repeatException = stExcept.TimeTaggerRepeatingException('bob')
-            # raise repeatException
-
+            repeatException = stExcept.RepeatingTimeTaggerException('bob')
+            raise repeatException
     return counts_valid
 
 
 def error_check_stats(previous_counts, current_counts,
-                      count_path='', include_null_counts=False,
+                      det_chnls={},
+                      include_null_counts=False,
                       extended_checks=False, extended_check_args={}):
     '''
     Function to make sure that the counts satisfy several conditions. These include
@@ -364,18 +368,22 @@ def error_check_stats(previous_counts, current_counts,
     changed from the previous record (makes sure that the timetaggers haven't frozen.)
     previous_counts: the data from the event before the one we are currently considering
     current_counts: the data from the event we are currently considering
-    count_path: The default for this are the parties in a tuple ('alice', 'bob')
     include_null_counts: Allow either of the singles counts to be 0 if True. If False waits until a non
                        zero singles is obtained.
     Returns counts_valid: a boolean as to whether the counts are valid or not.
     '''
     counts_valid = True
-    parties = count_path
+    parties = ('alice', 'bob')
     for p in parties:
+        det_ch = det_chnls[p]
         current_array = np.array(current_counts[p]).astype(int).flatten()
         previous_array = np.array(previous_counts[p]).astype(int).flatten()
         if (current_array == previous_array).all():
             raise stExcept.RepeatingTimeTaggerException(p)
+
+        elif (current_array[det_ch] <= 0 and
+              previous_array[det_ch] <= 0):
+            raise stExcept.DetectorNormalTimeTaggerException(p)
 
         if np.sum(current_array) == 0 and not include_null_counts:
             raise stExcept.NullCountsTimeTaggerException(p)
@@ -386,7 +394,6 @@ def error_check_stats(previous_counts, current_counts,
 
             sync_ch = extended_check_args['sync_ch']
             sync_drift_lim = extended_check_args['sync_drift_lim']
-            det_ch = extended_check_args['det_ch']
             sync_lower_lim = extended_check_args['sync_lower_lim']
             counts_lower_lim = extended_check_args['counts_lower_lim']
             sync_upper_lim = extended_check_args['sync_upper_lim']
@@ -406,10 +413,6 @@ def error_check_stats(previous_counts, current_counts,
 
             if current_array[sync_ch] > sync_upper_lim:
                 raise stExcept.LaserDoublePulsingTimeTaggerException(p)
-
-            if (current_array[det_ch] <= 0 and
-                    previous_array[det_ch] <= 0):
-                raise stExcept.DetectorNormalTimeTaggerException(p)
 
     return counts_valid
 
