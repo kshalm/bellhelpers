@@ -22,7 +22,6 @@ def get_power(redis_db, int_time,
               trim=True, loop_args={}):
     if COUNTPATH == 'All':
         return get_counts(redis_db, int_time=int_time,
-                          count_path=COUNTPATH,
                           include_null_counts=include_null_counts,
                           trim=trim, loop_args=loop_args)
     else:
