@@ -4,17 +4,25 @@ import json
 # import yaml
 
 
+class DetectorError(Exception):
+    pass
+
+
 class ComparatorControlMCC():
     """
     Simple class to control the comparators via the MCC
     """
 
     def __init__(self, ip, port):
+        self.ip = ip
+        self.port = port
         self.con = Client(ip, port)
         self.get_config()
 
     def get_config(self):
         configJSON = self.con.send_message('getconfig')
+        if configJSON is None:
+            raise DetectorError('Comparator is unresponsive')
         self.config = json.loads(configJSON)
         self.order = self.config['Key_Order']['Comparator']
         return self.config, self.order
@@ -38,7 +46,10 @@ class DetectorControlKeithley():
     Keithley
     """
 
-    def __init__(self, ip, port, id, el=None):  # configFile = 'client.yaml'):
+    def __init__(self, ip, port, id, el=None):  # configFile =
+        # 'client.yaml'):
+        self.ip = ip
+        self.port = port
         self.con = Client(ip, port)
         self.get_config()
         self.id = id+'keithley'
@@ -53,6 +64,8 @@ class DetectorControlKeithley():
 
     def get_config(self):
         configJSON = self.con.send_message('getconfig')
+        if configJSON is None:
+            raise DetectorError('Detector is unresponsive')
         self.config = json.loads(configJSON)
         self.order = self.config['Key_Order']['Comparator']
         return self.config, self.order
