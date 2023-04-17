@@ -21,7 +21,7 @@ class ComparatorControlMCC():
 
     def get_config(self):
         configJSON = self.con.send_message('getconfig')
-        if configJSON is None:
+        if configJSON == 'null':
             raise DetectorError('Comparator is unresponsive')
         self.config = json.loads(configJSON)
         self.order = self.config['Key_Order']['Comparator']
@@ -64,7 +64,7 @@ class DetectorControlKeithley():
 
     def get_config(self):
         configJSON = self.con.send_message('getconfig')
-        if configJSON is None:
+        if configJSON == 'null':
             raise DetectorError('Detector is unresponsive')
         self.config = json.loads(configJSON)
         self.order = self.config['Key_Order']['Comparator']
