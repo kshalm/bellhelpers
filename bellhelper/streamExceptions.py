@@ -1,6 +1,7 @@
 '''
 Custom exceptions related to streams that can be thrown.
 '''
+import traceback
 
 
 class StreamException(Exception):
@@ -108,6 +109,7 @@ class StreamFrozenException(StreamException):
         msg += " is not updating. \n"
         msg += "Attempted to connect "+str(numTries)+' times unsucessfully.\n'
         msg += "Elapsed Time: "+str(timeElapsed)+"s"
+        traceback.print_stack()
 
         if message is None:
             message = msg
