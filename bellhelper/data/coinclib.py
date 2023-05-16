@@ -1,14 +1,14 @@
 import numpy as np
 import zlib
 from numba import jit
-#import json
-#import time
+# import json
+# import time
 import json
 import time
 
 import scipy.signal
 from scipy.stats import binom
-#from scipy.stats import mode
+# from scipy.stats import mode
 from copy import deepcopy
 
 TTAGERRESOLUTION = 78.125E-12
@@ -162,7 +162,6 @@ def trim_data(data, ttagOffset, abDelay, syncTTagDiff, params, dt=None):
     aClicks = (aData >= firstSyncTTag) & (aData <= endTime)
     bClicks = (bData >= firstSyncTTag) & (bData <= endTime)
 
-
     trimmedData['alice'] = data['alice'][aClicks]
     trimmedData['bob'] = data['bob'][bClicks]
     trimmedData['alice']['ttag'] = trimmedData['alice']['ttag']-(startTTag)
@@ -188,7 +187,7 @@ def trim_data(data, ttagOffset, abDelay, syncTTagDiff, params, dt=None):
     if partyToTrim is not None:
         syncTTAGS = trimmedData[partyToTrim]['ttag'][syncBool[partyToTrim]]
         lastSyncTTAG = syncTTAGS[-1]
-        mask = trimmedData[partyToTrim]['ttag'] < lastSyncTTAG[-1]
+        mask = trimmedData[partyToTrim]['ttag'] < lastSyncTTAG
         trimmedData[partyToTrim] = trimmedData[partyToTrim][mask]
 
     return trimmedData, err
@@ -279,7 +278,7 @@ def calc_period(det, divider=800, syncCh=6, maxPeriod=170):
     laserPeriod = np.mean(laserPeriodArray[laserPeriodArray < maxPeriod])
     errorLP = np.where(laserPeriodArray > maxPeriod)
     laserPeriodArray[errorLP] = laserPeriodArray[np.roll(errorLP, -1)]
-    return(laserPeriod, laserPeriodArray)
+    return (laserPeriod, laserPeriodArray)
 
 # @jit
 
@@ -299,7 +298,7 @@ def check_for_timetagger_jump(rawData, params):
             jump['skip'] = True
             jump['party'].append(key)
             jump['position'].append(pos[0])
-    return(jump)
+    return (jump)
 
 
 def calc_phase_info(det, divider, ch):
@@ -319,7 +318,7 @@ def calc_phase_info(det, divider, ch):
 
     laserPulse = np.floor(ttagModSync*1./laserPeriodArray[syncArray])
     # print('Phase', laserPeriod, laserPeriodArray)
-    return(phase, laserPulse, ttagModSync, laserPeriod)
+    return (phase, laserPulse, ttagModSync, laserPeriod)
 
 
 def calc_phase_histogram(laserPeriod, phase, clickBool):
@@ -441,7 +440,7 @@ def calc_data_properties_one_party(data, params, divider,
     # props['inPCWindowMask'] = inPCWindowMask
     # props['outPCWindowMask'] = outPCWindowMask
 
-    return(props)
+    return (props)
 
 
 def get_processed_data(data, props, offset, pcStart, pcLength):
@@ -590,7 +589,7 @@ def write_single_party_to_compressed_file(fname, data, save='bin'):
         f.close()
     else:
         np.savez_compressed(fname, data=data)
-    return(fname)
+    return (fname)
 
 ########
 
@@ -645,7 +644,7 @@ def find_fwhm(X, Y):
     d = Y - (max(Y) * frac)
     indexes = np.where(d > 0)[0]
     fwhm = np.abs(X[indexes[-1]] - X[indexes[0]]) + 1
-    return(fwhm)
+    return (fwhm)
 
 # @jit
 
@@ -662,7 +661,7 @@ def remove_duplicate_ttags(rawData):
     rawData['ch'] = rawData['ch'][diffTtags0Bool]
     rawData['ttag'] = rawData['ttag'][diffTtags0Bool]
 
-    return(rawData)
+    return (rawData)
 
 # @jit
 
@@ -684,7 +683,7 @@ def get_reduced_data(rawData, params):
 
         det = det[first:last]
         reducedData[key] = det
-    return(reducedData)
+    return (reducedData)
 
 
 def laser_pulse_histogram(laserPulse, inWindowMask, clickBool, divider):
@@ -738,7 +737,7 @@ def find_offset_coinc(props, abdelay, corr):
     dB = dB[dBBool]
 
     coinc = np.intersect1d(dA, dB).astype(int)
-    return(coinc)
+    return (coinc)
 
 
 def calc_offset(data, params, divider):
@@ -882,8 +881,8 @@ def calc_violation(stats):
     pValue = calc_pvalue(Ntot, ratio)
 
     print("Ratio:", ratio, "pValue:", pValue)
-    return(CH, CHn, ratio, pValue)
+    return (CH, CHn, ratio, pValue)
 
 
 def calc_pvalue(N, prob):
-    return(binom.cdf(N*(1-prob), N, 0.5))
+    return (binom.cdf(N*(1-prob), N, 0.5))
