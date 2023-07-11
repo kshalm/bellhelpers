@@ -224,7 +224,7 @@ class MirrorControl():
         self.BESTCOUNTS = 0.
         self.STARTPOS = self.get_all_positions()
         self.log_output("Starting Position: " + str(self.STARTPOS), q)
-        self.log_output("", q)
+        # self.log_output("", q)
         xChan = []
         yChan = []
 
@@ -266,8 +266,8 @@ class MirrorControl():
             time.sleep(3)
             params['channels'] = yChan
             params['scale'] = params['scale'] * 4.
-            self.log_output("Starting Y alignment, Path: " + path, q)
-            self.log_output("Current, Best", q)
+            # self.log_output("Starting Y alignment, Path: " + path, q)
+            # self.log_output("Current, Best", q)
             resy = minimize(self.obj_func, x0, params,
                             method='Nelder-Mead', options=options)
             # resy = minimize(self.obj_func, x0, params, method = 'CG', options = optionsCG)
@@ -276,7 +276,7 @@ class MirrorControl():
             # self.STARTPOS = self.get_all_positions()
             self.log_output("Finished Y: " + str(self.BESTPOS) +
                             ' Optim: ' + str(self.BESTCOUNTS), q)
-            self.log_output("", q)
+            # self.log_output("", q)
             self.BESTCOUNTS = 0.
 
         if (dir == 'x' or dir == 'xy' or dir == 'x single'
@@ -285,8 +285,8 @@ class MirrorControl():
             time.sleep(3)
             params['channels'] = xChan
             params['scale'] = params['scale']*1./3.
-            self.log_output("Starting X alignment, Path: " + path, q)
-            self.log_output("Current, Best", q)
+            # self.log_output("Starting X alignment, Path: " + path, q)
+            # self.log_output("Current, Best", q)
             # resx = minimize(self.obj_func, x0,params, method = 'Nelder-Mead', options = options)
             resx = minimize(self.obj_func, x0, params,
                             method='Nelder-Mead', options=options)
@@ -295,7 +295,7 @@ class MirrorControl():
             # self.STARTPOS = self.get_all_positions()
             self.log_output("Finished X: " + str(self.BESTPOS) +
                             ' Optim: ' + str(self.BESTCOUNTS), q)
-            self.log_output("", q)
+            # self.log_output("", q)
             self.BESTCOUNTS = 0.
 
         self.move_all_to_position(self.BESTPOS)
