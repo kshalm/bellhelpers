@@ -202,8 +202,8 @@ class MirrorControl():
         val = 1./(counts*1. + 1.)
         # params['q'].put(str(counts) + ', ' + str(self.BESTCOUNTS))
         # print counts, self.BESTCOUNTS
-        self.log_output(str(counts) + ', ' +
-                        str(self.BESTCOUNTS) + ', ' + str(pos))  # , params['q'])
+        # self.log_output(str(counts) + ', ' +
+        #                str(self.BESTCOUNTS) + ', ' + str(pos))  # , params['q'])
         return val
 
     def log_output(self, msg, q=None):
